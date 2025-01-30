@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<div style="background: url(ressources/Logo_BGE.jpg); 
+            background-repeat: no-repeat; 
+            background-position: 1000px 20px; 
+            background-size: 700px auto;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.2">
+    <title>Library Curation Tool</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        input[type="text"], select {
+            width: 130px;
+            padding: 8px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            margin-right: 10px;
+            color: black;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .error-message, .success-message {
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .error-message {
+            color: red;
+        }
+        .success-message {
+            color: green;
+        }
+        #logo {
+            width: 200px;
+            height: auto;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .checkbox-group label {
+            margin-right: 20px;
+        }
+        .server-control {
+            margin-top: 20px;
+        }
+       .low-value {
+            background-color: #f8d7da; /* red for low values */
+            color: #721c24;
+        }
+
+        .medium-value {
+            background-color: #fff3cd; /* yellow for average values */
+            color: #856404;
+        }
+
+        .high-value {
+            background-color: #d4edda; /* green for high values */
+            color: #155724;
+        }
+        .valid-status {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .synonym-status {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .red-row {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .green-row {
+            background-color: #d4edda;
+            color: #155724;
+        }      
+    </style>
+</head>
+<body>
+    <img src="ressources/IBOL_LOGO_TRANSPARENT.png" alt="IBOL Logo" id="logo">
+    <h1>Library Curation Tool</h1>
+
+    <h2>Filter</h2>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        
+        <div id="infoField" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
+            <strong>How to use the filter function:</strong>
+            <ul>
+                <li>Enter a value in the <b>Search Term</b> field.</li>
+                <li>Check a box with the <b>Search Type</b> you wish in <b>Select Columns to Display:</b> to make it available in <b>Search Type</b> dropdown menu.
+                <li>Select a corresponding <b>Search Type</b> from the dropdown menu.</li>
+                <li>If needed, you can use <b>Search Term 2</b> and its corresponding <b>Search Type</b> to add an additional filter.</li>
+                <li>Click <b>Apply Filter</b> to display results matching your criteria.</li>
+            </ul>
+        </div>
+    </div>   
+    <form id="filterForm">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="searchTerm">Search Term 1:</label>
+            <input type="text" id="searchTerm" name="searchTerm" required>
+            <label for="searchType">Search Type 1:</label>
+            <select id="searchType" name="searchType">                                              
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+            <label for="searchTerm2">Search Term 2:</label>
+            <input type="text" id="searchTerm2" name="searchTerm2" required>
+            <label for="searchType2">Search Type 2:</label>
+            <select id="searchType2" name="searchType2">                            
+            </select>
+            <span style="cursor: pointer;" onclick="toggleInfo('infoField')">❓</span>
+        </div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">        
+        <div id="buttonsInfo" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
+            <strong>Explanation of Buttons:</strong>
+            <ul>
+                <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results.</li>
+                <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = Invalid or Not in Europe).</li>
+                <li><b>Stop Server:</b> Stops the server running in the backend. Use this only if you want to halt all server processes.</li>                
+            </ul>            
+        </div>
+    </div>
+        <div class="server-control">
+        <form id="serverControlForm">            
+            <button type="button" onclick="applyFilter()" style="background-color: lightyellow; color: black;">Apply Filter</button>
+            <button id="toggleInvalidRecords" style="background-color: lightcoral;">Hide Invalid Records</button>
+            <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Server</button>
+            <span style="cursor: pointer;" onclick="toggleInfo('buttonsInfo')">❓</span>
+    </form>
+    <script>
+        function toggleInfo(infoId) {
+            const infoField = document.getElementById(infoId);
+            if (infoField.style.display === 'none' || infoField.style.display === '') {
+                infoField.style.display = 'block';
+            } else {
+                infoField.style.display = 'none';
+            }
+        }
+    </script>   
+            <div id="distinctValueDisplay" style="font-size: 18px; margin-bottom: 10px; font-weight: bold;">
+             <!-- show number of different BINs -->
+            </div>
+        </div>
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="successMessage" class="success-message" style="display: none;"></div>
+        <div id="statisticsField" style="font-size: 16px; margin-top: 20px; font-weight: bold; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
+            <!-- Statistics will be displayed here -->
+            Statistics: <span id="statisticsText">No data available</span>
+        </div>                
+        <div style="position: relative; margin-top: 20px;">
+            <span style="cursor: pointer;" onclick="toggleInfo('columnsInfo')">❓</span>
+            <div id="columnsInfo" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                <strong>How to use "Select Columns to Display":</strong>
+                <ul>
+                    <li>Check the boxes next to the column names you want to display in the table.</li>
+                    <li>Unchecked columns will not be visible in the table.</li>
+                    <li>The table dynamically updates to reflect the selected columns.</li>
+                    <li>This feature allows you to customize the table view for better focus on relevant data.</li>
+                </ul>
+            </div>
+        </div>
+        <fieldset>
+            <legend>Select Columns to Display:</legend>
+            <div class="checkbox-group" id="checkboxGroup"></div>
+        </fieldset>
+        <div id="recordsTable"></div>
+    </form>
+
+    <div id="errorMessage" class="error-message" style="display: none;"></div>
+    <div id="successMessage" class="success-message" style="display: none;"></div>
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script>
+        let changes = [];
+        let statusSelections = {}; 
+    document.addEventListener('DOMContentLoaded', async () => {
+        function updateSearchTypeOptions() {
+        const checkboxes = document.querySelectorAll('input[name="columns"]:checked');
+        const selectedColumns = Array.from(checkboxes).map(cb => cb.value);
+
+        const searchTypeDropdown = document.getElementById('searchType');
+        const searchType2Dropdown = document.getElementById('searchType2');
+
+        // Clear existing options
+        searchTypeDropdown.innerHTML = '<option value=""></option>';
+        searchType2Dropdown.innerHTML = '<option value=""></option>';
+
+        // Populate new options
+        selectedColumns.forEach(column => {
+            const option = `<option value="${column}">${column}</option>`;
+            searchTypeDropdown.innerHTML += option;
+            searchType2Dropdown.innerHTML += option;
+        });
+
+        console.log('Updated dropdown options:', selectedColumns); // Debugging purposes
+    }
+
+    try {
+        const response = await fetch('/columns');
+        const data = await response.json();
+        const checkboxGroup = document.getElementById('checkboxGroup');
+        //const columns = data.availableColumns.filter(col => col !== 'status' && col.toLowerCase() !== 'species');
+        const columns = ['ranking', 'BAGS', 'processid', 'sampleid', 'bin_uri', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identifcation_method', 'itentified_by', 'taxonomy_notes', 'sex', 'life_stages', 'notes', 'voucher_type', 'collectors', 'collection_date', 'collection_type', 'collection_notes', 'geoid', 'country_ocean', 'province', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc', 'nuc_basecount', 'recordset_code_arr', 'gb_acs', 'additionalStatus'];
+
+        columns.forEach(column => {
+            const isChecked = column === 'bin_uri' || column === 'identification' || column.toLowerCase() === 'status' ? 'checked' : '';
+            checkboxGroup.innerHTML += `
+                <input type="checkbox" id="column${column}" name="columns" value="${column}" ${isChecked}>
+                <label for="column${column}">${column}</label>
+            `;
+        });
+
+        // Synchronize dropdowns after checkbox initialization
+        updateSearchTypeOptions();
+
+        // Event Listener for searchType
+        const searchTypeElement = document.getElementById('searchType');
+        searchTypeElement.addEventListener('change', () => handleSearchTypeChange('searchType'));
+
+        // Event Listener for searchType2
+        const searchType2Element = document.getElementById('searchType2');
+        searchType2Element.addEventListener('change', () => handleSearchTypeChange('searchType2'));
+
+        // Add change listener to checkboxes for dynamic updates
+        document.getElementById('checkboxGroup').addEventListener('change', () => {
+            updateSearchTypeOptions();
+        });
+
+    } catch (error) {
+        console.error('Error loading columns:', error);
+    }
+    
+});
+    function handleSearchTypeChange(searchTypeId) {
+        const searchTypeElement = document.getElementById(searchTypeId);
+        const selectedColumn = searchTypeElement.value;
+        const checkbox = document.getElementById(`column${selectedColumn}`);
+        if (checkbox && !checkbox.checked) {
+            checkbox.checked = true;
+        }
+
+        const table = document.getElementById('recordsTable');
+        const thElements = table.querySelectorAll('th');
+        const tdElements = table.querySelectorAll(`td[data-column="${selectedColumn}"]`);
+
+        thElements.forEach(th => {
+            if (th.dataset.column === selectedColumn) {
+                th.style.display = '';
+            }
+        });
+        tdElements.forEach(td => {
+            td.style.display = '';
+        });
+    }
+let binUriColorMap = {}; // color map
+function getRandomColor() {
+    const r = Math.floor(Math.random() * 256);
+    const g = Math.floor(Math.random() * 256);
+    const b = Math.floor(Math.random() * 56); 
+    return `rgb(${r}, ${g}, ${b})`;
+}
+function colorizeBinUriCells() {
+    const table = $('#dataTable').DataTable().table().node();
+    const rows = table.getElementsByTagName('tr');
+    const binUriIndex = getColumnIndexByName('#dataTable', 'bin_uri');
+    if (binUriIndex === -1) return; 
+
+    for (let row of rows) {
+        const cells = row.getElementsByTagName('td');
+        if (cells.length > binUriIndex) {
+            const cell = cells[binUriIndex];
+            const binUriValue = cell.innerText.trim();      
+            if (!binUriColorMap[binUriValue]) {
+                binUriColorMap[binUriValue] = getRandomColor(); // check if color has already been used
+            }
+
+            // apply color
+            cell.style.backgroundColor = binUriColorMap[binUriValue];
+            cell.style.color = '#ffffff'; 
+        }
+    }
+}
+
+function applyStatusRowColoringAndExcludeRed() {
+    const table = $('#dataTable').DataTable().table().node();
+    if (!table) {
+        console.error('Table is undefined!');
+        return;
+    }
+
+    const rows = table.getElementsByTagName('tr');
+    const statusColumnIndex = getColumnIndexByName('#dataTable', 'status');
+    if (statusColumnIndex === -1) {
+        console.error('Status column not found!');
+        return;
+    }
+
+    for (let row of rows) {
+        const cells = row.getElementsByTagName('td');
+        if (cells.length > statusColumnIndex) {
+            const statusCell = cells[statusColumnIndex];
+
+            // Access the dropdown value
+            const dropdown = statusCell.querySelector('select');
+            const statusValue = dropdown ? dropdown.value.trim().toLowerCase() : '';
+
+            console.log('Processing Row:', row, 'Status (Dropdown):', statusValue || '<empty>');
+
+            // Reset styles and visibility
+            row.style.backgroundColor = '';
+            row.style.color = '';
+            row.style.display = ''; // Ensure all rows are visible by default
+
+            // Apply styles based on status value
+            if (statusValue === 'valid') {
+                row.style.backgroundColor = '#d4edda'; // Green for "valid"
+                row.style.color = '#155724';
+            } else if (statusValue === 'invalid' || statusValue === 'not in europe') {
+                row.style.backgroundColor = '#f8d7da'; // Red for "Invalid" or "Not in Europe"
+                row.style.color = '#721c24';
+
+                // Exclude (hide) red rows
+                row.style.display = 'none';
+            }
+        }
+    }
+}
+let hideInvalidRecords = true; // Default to hiding red rows
+
+document.getElementById('toggleInvalidRecords').addEventListener('click', () => {
+    hideInvalidRecords = !hideInvalidRecords;
+    const table = $('#dataTable').DataTable().table().node();
+    const rows = table.getElementsByTagName('tr');
+    const statusColumnIndex = getColumnIndexByName('#dataTable', 'status');
+
+    for (let row of rows) {
+        const cells = row.getElementsByTagName('td');
+        if (cells.length > statusColumnIndex) {
+            const statusCell = cells[statusColumnIndex];
+            const dropdown = statusCell.querySelector('select');
+            const statusValue = dropdown ? dropdown.value.trim().toLowerCase() : '';
+
+            if (statusValue === 'invalid' || statusValue === 'not in europe') {
+                row.style.display = hideInvalidRecords ? 'none' : '';
+            }
+        }
+    }
+
+    document.getElementById('toggleInvalidRecords').textContent = hideInvalidRecords ? 'Show Invalid Records' : 'Hide Invalid Records';
+});
+
+
+        function getColumnIndexByName(table, columnName) {
+            const headers = $(table).find('thead th');
+            for (let i = 0; i < headers.length; i++) {
+                if ($(headers[i]).text().trim().toLowerCase() === columnName.toLowerCase()) {
+                    return i;
+                }
+            }
+            return -1; // if collumn is not available
+        }    
+        function initTableSort() {
+            $.fn.dataTable.ext.order['dom-text'] = function(settings, col) {
+                return this.api().column(col, { order: 'index' }).nodes().map(function(td) {
+                    const inputVal = $('input', td).val();
+                    console.log('Input Value:', inputVal); // Debugging: Wert der Texteingabe ausgeben
+                    return (inputVal || '').toLowerCase(); // Kleinbuchstaben für konsistente Sortierung
+                });
+            };
+            $.fn.dataTable.ext.order['dom-select'] = function(settings, col) {
+                return this.api().column(col, { order: 'index' }).nodes().map(function(td) {
+                    const selectVal = $('select', td).val();
+                    console.log('Select Value:', selectVal); // Debugging
+                    return (selectVal || '').toLowerCase(); 
+                });
+            };            
+            const speciesIndex = getColumnIndexByName('#dataTable', 'Species');
+            const statusIndex = getColumnIndexByName('#dataTable', 'Status');            
+            const additionalStatusIndex = getColumnIndexByName('#dataTable', 'Additional Status');
+            const curator_notesIndex = getColumnIndexByName('#dataTable', 'Curator Notes');
+            
+            $('#dataTable').DataTable({
+                "columnDefs": [
+                    { "orderDataType": "dom-select", "targets": [statusIndex, additionalStatusIndex] },   // Dropdown-menue
+                    { "orderDataType": "dom-text", "targets": [speciesIndex, curator_notesIndex] },  
+                ],
+                "drawCallback": function(settings) {
+                    colorizeBinUriCells();                    
+                    applyStatusRowColoringAndExcludeRed();
+                }
+            });
+        }
+     async function applyFilter() {
+        const searchTerm = document.getElementById('searchTerm').value;
+        const searchType = document.getElementById('searchType').value;
+        const searchTerm2 = document.getElementById('searchTerm2').value;
+        const searchType2 = document.getElementById('searchType2').value;
+
+        const columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
+
+        try {
+            const response = await fetch('/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ searchTerm, searchType, searchTerm2, searchType2, columns })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch records');
+            }
+
+            const responseData = await response.json();
+            document.getElementById('recordsTable').innerHTML = responseData.table;
+
+            initTableSort();
+
+            document.getElementById('errorMessage').style.display = 'none';
+            addChangeListeners();
+            loadStatusSelections();
+
+            // Update the statistics field
+            updateDistinctValues('bin_uri', searchTerm, searchType, searchTerm2, searchType2);
+
+            colorizeBinUriCells();     
+            applyStatusRowColoringAndExcludeRed();
+        } catch (error) {
+            console.error('Error fetching records:', error);
+            document.getElementById('errorMessage').innerText = 'Failed to fetch records. Please try again.';
+            document.getElementById('errorMessage').style.display = 'block';
+        }
+    }
+async function updateDistinctValues(column, searchTerm, searchType, searchTerm2, searchType2) {
+    try {
+        const response = await fetch('/distinct-values', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ column, searchTerm, searchType, searchTerm2, searchType2 })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Assume data contains counts for records, species, and BINs
+            const recordCount = data.recordCount || 0;
+            const speciesCount = data.speciesCount || 0;
+            const binCount = data.binCount || 0;
+            const curatedCount = data.curatedCount || 0;
+            const uncuratedCount = data.uncuratedCount || 0;
+            const binSharingEvents = data.binSharingEvents || 0;
+            const binSplittingEvents = data.binSplittingEvents || 0;
+
+            // Update the statistics field
+            const statisticsText = `${recordCount} total records, ${curatedCount} curated records, ${uncuratedCount} uncurated records, ${speciesCount} species, ${binCount} BINs, ${binSharingEvents} BIN-sharing events, and ${binSplittingEvents} BIN-splitting events.`;
+            document.getElementById('statisticsText').innerText = statisticsText;
+        } else {
+            document.getElementById('statisticsText').innerText = 'Error fetching data.';
+        }
+    } catch (error) {
+        console.error('Error fetching distinct values:', error);
+        document.getElementById('statisticsText').innerText = 'Error fetching data.';
+    }
+}
+        function addChangeListeners() {
+            document.querySelectorAll('#dataTable select, #dataTable input[type="text"]').forEach(element => {
+                element.addEventListener('change', (event) => {
+                    const index = event.target.parentNode.parentNode.rowIndex - 1;
+                    const column = event.target.id.split('-')[0];
+                    const newValue = event.target.value;
+
+                    if (column === 'status') {
+                        const processId = document.getElementById(`processid-${index}`).textContent;
+                        statusSelections[processId] = newValue;
+                    }
+
+                    const existingChange = changes.find(change => change.index === index && change.column === column);
+                    if (existingChange) {
+                        existingChange.newValue = newValue;
+                    } else {
+                        changes.push({ index, column: column, newValue });
+                    }
+                });
+            });
+        }
+        function loadStatusSelections() {
+            document.querySelectorAll('#dataTable select[name="status"]').forEach((element, index) => {
+                const processId = document.getElementById(`processid-${index}`).textContent;
+                if (statusSelections[processId]) {
+                    element.value = statusSelections[processId];
+                }
+            });
+        }
+        async function submitRow(event, index, processId) {
+            event.preventDefault();
+
+            const status = document.getElementById(`status-${index}`).value;
+            const additionalStatus = document.getElementById(`additionalStatus-${index}`).value;            
+            const species = document.getElementById(`species-${index}`).value;
+            const curator_notes = document.getElementById(`curator_notes-${index}`).value;
+            
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({processId, status, additionalStatus, species, curator_notes })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to submit row');
+                }
+
+                document.getElementById('successMessage').innerText = 'Submit successful';
+                document.getElementById('successMessage').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('successMessage').style.display = 'none';
+                }, 3000);
+
+                changes = changes.filter(change => !(change.index === index && change.processId === processId));
+            } catch (error) {
+                console.error('Error submitting row:', error);
+                document.getElementById('errorMessage').innerText = 'Submit failed';
+                document.getElementById('errorMessage').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('errorMessage').style.display = 'none';
+                }, 3000);
+            }
+        }
+        async function stopServer() {
+            try {
+                const response = await fetch('/stopServer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to stop server');
+                }
+                document.getElementById('successMessage').innerText = 'Server stopped successfully';
+                document.getElementById('successMessage').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('successMessage').style.display = 'none';
+                }, 3000);
+            } catch (error) {
+                console.error('Error stopping server:', error);
+                document.getElementById('errorMessage').innerText = 'Failed to stop server';
+                document.getElementById('errorMessage').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('errorMessage').style.display = 'none';
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
