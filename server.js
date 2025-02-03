@@ -325,8 +325,13 @@ app.post('/generate', (req, res) => {
         const speciesBinMap = {};
 
         rows.forEach(row => {
-            if (row.status && (row.status.toLowerCase() === 'invalid' || row.status.toLowerCase() === 'not in europe')) {
-                return; // Skip invalid rows for BIN analysis
+            if (row.status && row.status.toLowerCase() === 'invalid record') {
+                return; // Skip invalid records entirely
+            }
+
+            // Include "reinclude species" for analysis but skip "exclude species"
+            if (row.status && row.status.toLowerCase() === 'exclude species') {
+                return; // Skip excluded species for BIN analysis
             }
 
             // BIN-sharing: Group species by bin_uri
@@ -361,29 +366,36 @@ app.post('/generate', (req, res) => {
 
             let binInfo = '';
             if (sharedSpecies.length > 0) {
-                binInfo += `<b>BIN-sharing:</b> ${sharedSpecies.join(', ')}. `;
+                binInfo += `<b>BIN-sharing:</b> ${sharedSpecies.join(', ')} `;
             }
             if (validBins.length > 1) {
-                binInfo += `<b>BIN-splitting:</b> ${validBins.join(', ')}.`;
+                binInfo += `<b>BIN-splitting:</b> ${validBins.join(', ')}`;
             } else if (validBins.length === 1) {
-                binInfo += `<b>Single BIN:</b> ${validBins[0]}.`;
+                binInfo += `<b>Single BIN:</b> ${validBins[0]}`;
             }
 
             // Calculate BAGS grade only for valid records
             const binSharing = sharedSpecies.length > 0;
             const binCount = validBins.length;
-            const recordCount = rows.filter(row => row.species === item.species && (!row.status || row.status.toLowerCase() !== 'invalid')).length;
+            const recordCount = rows.filter(row => 
+                row.species === item.species && 
+                (!row.status || (row.status.toLowerCase() !== 'invalid record' && row.status.toLowerCase() !== 'exclude species'))
+            ).length;
             const BAGS = calculateBAGSGrade(binCount, recordCount, binSharing, validBins.map(bin => ({ id: bin, exclusive: !binSharing })));
 
             // Generate row HTML (include all records)
             const row = columns.map(column => {
-                return `<td id="${column.toLowerCase()}-${index}">${item[column.toLowerCase()] || ''}</td>`;
+                // Apply italics to "identification" column
+                const cellValue = item[column.toLowerCase()] || '';
+                const formattedValue = column.toLowerCase() === 'identification' ? `<i>${cellValue}</i>` : cellValue;
+
+                return `<td id="${column.toLowerCase()}-${index}">${formattedValue}</td>`;
             }).join('');
             return `
-                <tr class="${item.status && item.status.toLowerCase() === 'invalid' ? 'invalid-record' : ''}">
+                <tr class="${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? 'invalid-record' : ''}">
                     ${row}
-                    <td>${item.status && item.status.toLowerCase() === 'invalid' ? '' : BAGS}</td>
-                    <td>${item.status && item.status.toLowerCase() === 'invalid' ? '' : binInfo.trim()}</td>
+                    <td>${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? '' : BAGS}</td>
+                    <td>${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? '' : binInfo.trim()}</td>
                     <td><a href="${item.url}" target="_blank">Link</a></td>
                     <td id="processid-${index}">${item.processid || ''}</td>
                     <td>${item.country_ocean || ''}</td>
@@ -391,17 +403,18 @@ app.post('/generate', (req, res) => {
                     <td>
                         <select id="status-${index}">
                             <option value="" ${!item.status ? 'selected' : ''}></option>
-                            <option value="valid" ${item.status === 'valid' ? 'selected' : ''}>Valid</option>
-                            <option value="invalid" ${item.status === 'invalid' ? 'selected' : ''}>Invalid</option>
-                            <option value="not in europe" ${item.status === 'not in europe' ? 'selected' : ''}>Not in Europe</option>
+                            <option value="valid record" ${item.status === 'valid record' ? 'selected' : ''}>valid record</option>
+                            <option value="invalid record" ${item.status === 'invalid record' ? 'selected' : ''}>invalid record</option>
+                            <option value="exclude species" ${item.status === 'exclude species' ? 'selected' : ''}>exclude species</option>
+                            <option value="reinclude species" ${item.status === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
                         </select>
                     </td>
                     <td>
                         <select id="additionalStatus-${index}">
                             <option value="" ${!item.additionalStatus ? 'selected' : ''}></option>
                             <option value="misidentified" ${item.additionalStatus === 'misidentified' ? 'selected' : ''}>misidentified</option>
-                            <option value="synonym" ${item.additionalStatus === 'synonym' ? 'selected' : ''}>Synonym</option>
-                            <option value="typo" ${item.additionalStatus === 'typo' ? 'selected' : ''}>typo</option>
+                            <option value="synonym" ${item.additionalStatus === 'synonym' ? 'selected' : ''}>synonym</option>
+                            <option value="typo" ${item.additionalStatus === 'typo' ? 'selected' : ''}>typo</option>                            
                         </select>
                     </td>
                     <td><input type="text" id="species-${index}" value="${item.species || ''}"></td>
@@ -430,9 +443,10 @@ app.post('/generate', (req, res) => {
                 <tbody>
                     ${tableRows}
                 </tbody>
-            </table>`;
+            </table>`;        
+        
+        res.json({success: true, table });
 
-        res.json({ success: true, table });
     });
 });
 // app.post('/submit') endpoint
@@ -440,7 +454,8 @@ app.post('/submit', (req, res) => {
     const { processId, status, additionalStatus, species, curator_notes } = req.body;
 
     // SQL command to get the current values
-    const sqlSelect = `SELECT species, status, additionalStatus, curator_notes FROM records WHERE processid = ?`;
+    const sqlSelect = `SELECT species, identification, status, additionalStatus, curator_notes FROM records WHERE processid = ?`;
+
     db.get(sqlSelect, [processId], (selectErr, oldData) => {
         if (selectErr) {
             console.error('Error fetching current data from database:', selectErr);
@@ -448,48 +463,41 @@ app.post('/submit', (req, res) => {
         }
 
         const currentSpecies = oldData.species || '';
+        const currentIdentification = oldData.identification || ''; // Get identification value
         const currentStatus = oldData.status || '';
         const currentAdditionalStatus = oldData.additionalStatus || '';
-        const currentCurator_notes = oldData.curator_notes || '';
+        const currentCuratorNotes = oldData.curator_notes || '';
 
-        let changes = {
-            oldValues: {},
-            newValues: {}
-        }; // Object to track what has changed
+        let changes = { oldValues: {}, newValues: {} };
 
-        // Function to update status, additionalStatus, curator_notes, and species
-        function updateOtherFields(updateSpecies = false) {
-            if (status !== currentStatus) {
-                changes.oldValues.status = currentStatus;
-                changes.newValues.status = status;
-            }
-            if (additionalStatus !== currentAdditionalStatus) {
-                changes.oldValues.additionalStatus = currentAdditionalStatus;
-                changes.newValues.additionalStatus = additionalStatus;
-            }
-            if (curator_notes !== currentCurator_notes) {
-                changes.oldValues.curator_notes = currentCurator_notes;
-                changes.newValues.curator_notes = curator_notes;
-            }
+        // Check for changes in the fields and log them
+        if (currentStatus !== status) {
+            changes.oldValues.status = currentStatus;
+            changes.newValues.status = status;
+        }
+        if (currentAdditionalStatus !== additionalStatus) {
+            changes.oldValues.additionalStatus = currentAdditionalStatus;
+            changes.newValues.additionalStatus = additionalStatus;
+        }
+        if (currentCuratorNotes !== curator_notes) {
+            changes.oldValues.curator_notes = currentCuratorNotes;
+            changes.newValues.curator_notes = curator_notes;
+        }
 
-            // SQL to update the fields for the specific processId
+        function updateRecords() {
             const sqlUpdate = `UPDATE records
-                               SET status = ?,
-                                   additionalStatus = ?,
-                                   curator_notes = ?
-                                   ${updateSpecies ? ', species = ?' : ''}
+                               SET status = ?, additionalStatus = ?, curator_notes = ?
                                WHERE processid = ?`;
 
-            const params = updateSpecies
-                ? [status, additionalStatus, curator_notes, species, processId]
-                : [status, additionalStatus, curator_notes, processId];
-
-            db.run(sqlUpdate, params, function(err) {
+            db.run(sqlUpdate, [status, additionalStatus, curator_notes, processId], function(err) {
                 if (err) {
                     console.error('Error updating record in database:', err);
                     return res.status(500).json({ success: false, message: 'Error updating record in database' });
                 }
+
                 console.log(`Row with Process ID ${processId} updated successfully.`);
+
+                // Log the changes if any
                 if (Object.keys(changes.oldValues).length > 0) {
                     writeToLog(processId, 'Updated', changes.oldValues, changes.newValues);
                 }
@@ -497,58 +505,75 @@ app.post('/submit', (req, res) => {
             });
         }
 
-        // Check if species has changed
-        if (species && species.trim() !== currentSpecies) {
-            const updatedSpecies = species.trim();
-            changes.oldValues.species = currentSpecies;
-            changes.newValues.species = updatedSpecies;
+        // **🔹 Handle "exclude species" logic**
+        if (status === 'exclude species') {
+            console.log(`Excluding all records with identification: ${currentIdentification}`);
 
-            // Update species for all records only if additionalStatus is 'typo' or 'synonym'
-            if (additionalStatus === 'typo' || additionalStatus === 'synonym') {
-                const sqlSelectAll = `SELECT processid FROM records WHERE species = ?`;
-                db.all(sqlSelectAll, [currentSpecies], (selectAllErr, rows) => {
+            const sqlUpdateAll = `UPDATE records SET status = 'exclude species' WHERE identification = ?`;
+
+            db.run(sqlUpdateAll, [currentIdentification], function(err) {
+                if (err) {
+                    console.error('Error updating species in all records:', err);
+                    return res.status(500).json({ success: false, message: 'Error updating species in all records' });
+                }
+
+                console.log(`Updated status to 'exclude species' for all records with identification: ${currentIdentification}`);
+
+                const sqlSelectAll = `SELECT processid FROM records WHERE identification = ?`;
+                db.all(sqlSelectAll, [currentIdentification], (selectAllErr, rows) => {
                     if (selectAllErr) {
-                        console.error('Error selecting records for update:', selectAllErr);
-                        return res.status(500).json({ success: false, message: 'Error selecting records for update' });
-                    }
-                    if (rows.length > 0) {
-                        console.log(`The following records will have their species updated from ${currentSpecies} to ${updatedSpecies}:`);
-                        rows.forEach(row => {
-                            console.log(`- Process ID: ${row.processid}`);
-                        });
-
-                        const sqlUpdateAll = `UPDATE records SET species = ? WHERE species = ?`;
-                        db.run(sqlUpdateAll, [updatedSpecies, currentSpecies], function(err) {
-                            if (err) {
-                                console.error('Error updating species in all records:', err);
-                                return res.status(500).json({ success: false, message: 'Error updating species in all records' });
-                            }
-
-                            console.log(`Updated species name from ${currentSpecies} to ${updatedSpecies} in all relevant rows.`);
-
-                            // Log each affected record
-                            rows.forEach(row => {
-                                const logChanges = {
-                                    oldValues: { species: currentSpecies },
-                                    newValues: { species: updatedSpecies }
-                                };
-                                writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
-                            });    
-
-                            updateOtherFields();
-                        });
+                        console.error('Error fetching updated records:', selectAllErr);
                     } else {
-                        console.log('No records found with the current species name.');
-                        res.status(404).json({ success: false, message: 'No records found with the current species name' });
+                        rows.forEach(row => {
+                            const logChanges = {
+                                oldValues: { status: currentStatus },
+                                newValues: { status: 'exclude species' }
+                            };
+                            writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
+                        });
                     }
                 });
-            } else {
-                // Update only the specific record for other additionalStatus values
-                updateOtherFields(true);
-            }
-        } else {
-            // Proceed with updating the status, additionalStatus if species hasn't changed
-            updateOtherFields();
+
+                updateRecords();
+            });
+        }
+
+        // **🔹 Handle "reinclude species" logic**
+        else if (status === 'reinclude species') {
+            console.log(`Reincluding all records with identification: ${currentIdentification}`);
+
+            const sqlUpdateAll = `UPDATE records SET status = 'reinclude species' WHERE identification = ?`;
+
+            db.run(sqlUpdateAll, [currentIdentification], function(err) {
+                if (err) {
+                    console.error('Error reincluding species in all records:', err);
+                    return res.status(500).json({ success: false, message: 'Error reincluding species in all records' });
+                }
+
+                console.log(`Updated status to 'reinclude species' for all records with identification: ${currentIdentification}`);
+
+                const sqlSelectAll = `SELECT processid FROM records WHERE identification = ?`;
+                db.all(sqlSelectAll, [currentIdentification], (selectAllErr, rows) => {
+                    if (selectAllErr) {
+                        console.error('Error fetching updated records:', selectAllErr);
+                    } else {
+                        rows.forEach(row => {
+                            const logChanges = {
+                                oldValues: { status: currentStatus },
+                                newValues: { status: 'reinclude species' }
+                            };
+                            writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
+                        });
+                    }
+                });
+
+                updateRecords();
+            });
+        }
+
+        // For other statuses, just update the single record
+        else {
+            updateRecords();
         }
     });
 });
@@ -578,16 +603,17 @@ app.post('/search', (req, res) => {
                     <td id="processid-${index}">${item.processid}</td>
                     <td>
                         <select id="status-${index}">
-                            <option value="valid" ${item.status === 'valid' ? 'selected' : ''}>Valid</option>
-                            <option value="invalid" ${item.status === 'invalid' ? 'selected' : ''}>Invalid</option>
-                            <option value="not in europe" ${item.status === 'not in europe' ? 'selected' : ''}>Not in Europe</option>
+                            <option value="valid record" ${item.status === 'valid record' ? 'selected' : ''}>valid record</option>
+                            <option value="invalid record" ${item.status === 'invalid record' ? 'selected' : ''}>invalid record</option>
+                            <option value="exclude species" ${item.status === 'exclude species' ? 'selected' : ''}>exclude species</option>
+                            <option value="reinclude species" ${item.status === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
                         </select>
                     </td>
                     <td>
                         <select id="additionalStatus-${index}">
                             <option value="misidentified" ${item.additionalStatus === 'misidentified' ? 'selected' : ''}>misidentified</option>
-                            <option value="synonym" ${item.additionalStatus === 'synonym' ? 'selected' : ''}>Synonym</option>
-                            <option value="typo" ${item.additionalStatus === 'typo' ? 'selected' : ''}>typo</option>
+                            <option value="synonym" ${item.additionalStatus === 'synonym' ? 'selected' : ''}>synonym</option>
+                            <option value="typo" ${item.additionalStatus === 'typo' ? 'selected' : ''}>typo</option>                            
                         </select>
                     </td>                    
                     <td><input type="text" id="species-${index}" value="${item.species || ''}"></td>
@@ -633,7 +659,8 @@ app.post('/distinct-values', (req, res) => {
     }
 
     // Exclude rows with specific statuses
-    conditions.push(`(LOWER(status) NOT IN ('invalid', 'not in europe') OR status IS NULL)`);
+    conditions.push(`(LOWER(status) NOT IN ('invalid record') OR status IS NULL)`);
+    //conditions.push(`(LOWER(status) NOT IN ('invalid record', 'exclude species') OR status IS NULL)`);
 
     // Add conditions to the query
     if (conditions.length > 0) {

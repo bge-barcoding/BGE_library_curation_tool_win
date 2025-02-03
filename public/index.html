@@ -142,7 +142,7 @@
             <strong>Explanation of Buttons:</strong>
             <ul>
                 <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results.</li>
-                <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = Invalid or Not in Europe).</li>
+                <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species).</li>
                 <li><b>Stop Server:</b> Stops the server running in the backend. Use this only if you want to halt all server processes.</li>                
             </ul>            
         </div>
@@ -339,11 +339,11 @@ function applyStatusRowColoringAndExcludeRed() {
             row.style.display = ''; // Ensure all rows are visible by default
 
             // Apply styles based on status value
-            if (statusValue === 'valid') {
-                row.style.backgroundColor = '#d4edda'; // Green for "valid"
+            if (statusValue === 'valid record') {
+                row.style.backgroundColor = '#d4edda'; // Green for "valid record"
                 row.style.color = '#155724';
-            } else if (statusValue === 'invalid' || statusValue === 'not in europe') {
-                row.style.backgroundColor = '#f8d7da'; // Red for "Invalid" or "Not in Europe"
+            } else if (statusValue === 'invalid record' || statusValue === 'exclude species') {
+                row.style.backgroundColor = '#f8d7da'; // Red for "invalid record" or "exclude species"
                 row.style.color = '#721c24';
 
                 // Exclude (hide) red rows
@@ -367,7 +367,7 @@ document.getElementById('toggleInvalidRecords').addEventListener('click', () => 
             const dropdown = statusCell.querySelector('select');
             const statusValue = dropdown ? dropdown.value.trim().toLowerCase() : '';
 
-            if (statusValue === 'invalid' || statusValue === 'not in europe') {
+            if (statusValue === 'invalid record' || statusValue === 'exclude species') {
                 row.style.display = hideInvalidRecords ? 'none' : '';
             }
         }
