@@ -527,14 +527,41 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
             const additionalStatus = document.getElementById(`additionalStatus-${index}`).value;            
             const species = document.getElementById(`species-${index}`).value;
             const curator_notes = document.getElementById(`curator_notes-${index}`).value;
-            
+
+            // Check if the user selected "exclude species" or "reinclude species" and display a confirmation dialog
+            if (status === 'exclude species') {
+                const userConfirmed = confirm(
+                    "You are about to exclude an entire species. Are you sure you want to proceed?"
+                );
+
+                if (!userConfirmed) {
+                    // User canceled the action, so exit the function
+                    return;
+                }
+            } else if (status === 'reinclude species') {
+                const userConfirmed = confirm(
+                    "You are about to reinclude an entire species. Are you sure you want to proceed?"
+                );
+
+                if (!userConfirmed) {
+                    // User canceled the action, so exit the function
+                    return;
+                }
+            }
+
             try {
                 const response = await fetch('/submit', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({processId, status, additionalStatus, species, curator_notes })
+                    body: JSON.stringify({
+                        processId,
+                        status,
+                        additionalStatus,
+                        species,
+                        curator_notes,
+                    }),
                 });
 
                 if (!response.ok) {
@@ -547,6 +574,7 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
                     document.getElementById('successMessage').style.display = 'none';
                 }, 3000);
 
+                // Remove the change from the changes array
                 changes = changes.filter(change => !(change.index === index && change.processId === processId));
             } catch (error) {
                 console.error('Error submitting row:', error);

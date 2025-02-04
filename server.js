@@ -534,6 +534,7 @@ app.post('/submit', (req, res) => {
                     }
                 });
 
+                // Proceed with updating the specific record (log changes)
                 updateRecords();
             });
         }
@@ -571,8 +572,54 @@ app.post('/submit', (req, res) => {
             });
         }
 
-        // For other statuses, just update the single record
-        else {
+        // **🔹 Handle "species name changes" (correct species name, typo, synonym)**
+        else if (species && species.trim() !== currentSpecies) {
+            const updatedSpecies = species.trim();
+            changes.oldValues.species = currentSpecies;
+            changes.newValues.species = updatedSpecies;
+
+            if (additionalStatus === 'typo' || additionalStatus === 'synonym') {
+                const sqlSelectAll = `SELECT processid FROM records WHERE species = ?`;
+                db.all(sqlSelectAll, [currentSpecies], (selectAllErr, rows) => {
+                    if (selectAllErr) {
+                        console.error('Error selecting records for update:', selectAllErr);
+                        return res.status(500).json({ success: false, message: 'Error selecting records for update' });
+                    }
+                    if (rows.length > 0) {
+                        console.log(`The following records will have their species updated from ${currentSpecies} to ${updatedSpecies}:`);
+                        rows.forEach(row => {
+                            console.log(`- Process ID: ${row.processid}`);
+                        });
+
+                        const sqlUpdateAll = `UPDATE records SET species = ? WHERE species = ?`;
+                        db.run(sqlUpdateAll, [updatedSpecies, currentSpecies], function(err) {
+                            if (err) {
+                                console.error('Error updating species in all records:', err);
+                                return res.status(500).json({ success: false, message: 'Error updating species in all records' });
+                            }
+
+                            console.log(`Updated species name from ${currentSpecies} to ${updatedSpecies} in all relevant rows.`);
+
+                            rows.forEach(row => {
+                                const logChanges = {
+                                    oldValues: { species: currentSpecies },
+                                    newValues: { species: updatedSpecies }
+                                };
+                                writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
+                            });
+
+                            updateRecords();
+                        });
+                    } else {
+                        console.log('No records found with the current species name.');
+                        res.status(404).json({ success: false, message: 'No records found with the current species name' });
+                    }
+                });
+            } else {
+                updateRecords(true);
+            }
+        } else {
+            // Handle other cases (just update single record)
             updateRecords();
         }
     });
