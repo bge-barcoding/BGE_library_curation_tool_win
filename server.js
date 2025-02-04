@@ -352,7 +352,17 @@ app.post('/generate', (req, res) => {
         });
 
         // Generate HTML table headers
-        const tableHeaders = columns.map(column => `<th>${column}</th>`).join('') + '<th>BAGS</th><th>BIN Info</th>';
+        const tableHeaders = `${columns.map(column => `<th>${column}</th>`).join('')}
+            <th>
+                <span style="display: inline-flex; align-items: center;"> 
+                    BAGS 
+                    <span 
+                        id="bagsInfoIcon" 
+                        style="color: red; cursor: pointer; margin-left: 5px;" 
+                        onclick="openBAGSInfo()">?</span> 
+                    </span> 
+            </th>
+            <th>BIN Info</th>`;
 
         // Generate HTML table rows
         const tableRows = rows.map((item, index) => {
@@ -432,7 +442,15 @@ app.post('/generate', (req, res) => {
                         <th>url</th>
                         <th>Process ID</th>
                         <th>Country_ocean</th>
-                        <th>Ranking</th>
+                        <th>
+                            <span style="display: inline-flex; align-items: center;">
+                                Ranking 
+                                <span 
+                                    id="rankingInfoIcon" 
+                                    style="color: red; cursor: pointer; margin-left: 5px;" 
+                                    onclick="openRankingInfo()">?</span>
+                            </span>
+                        </th>
                         <th>Status</th>
                         <th>Reason name correction</th>
                         <th>Correct species name</th>
@@ -505,56 +523,63 @@ app.post('/submit', (req, res) => {
             });
         }
 
-        // **🔹 Handle "exclude species" logic**
+        // **🔹 Handle "exclude species" logic, but keep "valid record" entries unchanged**
         if (status === 'exclude species') {
             console.log(`Excluding all records with identification: ${currentIdentification}`);
 
-            const sqlUpdateAll = `UPDATE records SET status = 'exclude species' WHERE identification = ?`;
-
-            db.run(sqlUpdateAll, [currentIdentification], function(err) {
-                if (err) {
-                    console.error('Error updating species in all records:', err);
-                    return res.status(500).json({ success: false, message: 'Error updating species in all records' });
+            const sqlSelectAffected = `SELECT processid, status FROM records WHERE identification = ? AND (status IS NULL OR status NOT IN (?))`;
+            db.all(sqlSelectAffected, [currentIdentification, 'valid record'], (selectAllErr, rows) => {
+                if (selectAllErr) {
+                    console.error('Error fetching affected records:', selectAllErr);
+                    return res.status(500).json({ success: false, message: 'Error fetching affected records' });
                 }
 
-                console.log(`Updated status to 'exclude species' for all records with identification: ${currentIdentification}`);
+                if (rows.length === 0) {
+                    console.log('No records found to update.');
+                    return updateRecords();
+                }
 
-                const sqlSelectAll = `SELECT processid FROM records WHERE identification = ?`;
-                db.all(sqlSelectAll, [currentIdentification], (selectAllErr, rows) => {
-                    if (selectAllErr) {
-                        console.error('Error fetching updated records:', selectAllErr);
-                    } else {
-                        rows.forEach(row => {
-                            const logChanges = {
-                                oldValues: { status: currentStatus },
-                                newValues: { status: 'exclude species' }
-                            };
-                            writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
-                        });
+                // Update all affected records
+                const sqlUpdateAll = `UPDATE records SET status = ? WHERE identification = ? AND (status IS NULL OR status NOT IN (?))`;
+                db.run(sqlUpdateAll, ['exclude species', currentIdentification, 'valid record'], function(err) {
+                    if (err) {
+                        console.error('Error updating species in all records:', err);
+                        return res.status(500).json({ success: false, message: 'Error updating species in all records' });
                     }
-                });
 
-                // Proceed with updating the specific record (log changes)
-                updateRecords();
+                    console.log(`Updated status to 'exclude species' for applicable records with identification: ${currentIdentification}`);
+
+                    // Log each affected record
+                    rows.forEach(row => {
+                        const logChanges = {
+                            oldValues: { status: row.status || 'uncurated' },
+                            newValues: { status: 'exclude species' }
+                        };
+                        writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
+                    });
+
+                    // Proceed with updating the specific record (log changes)
+                    updateRecords();
+                });
             });
         }
 
-        // **🔹 Handle "reinclude species" logic**
+        // **🔹 Handle "reinclude species" logic (keep "valid record" unchanged)**
         else if (status === 'reinclude species') {
             console.log(`Reincluding all records with identification: ${currentIdentification}`);
 
-            const sqlUpdateAll = `UPDATE records SET status = 'reinclude species' WHERE identification = ?`;
+            const sqlUpdateAll = `UPDATE records SET status = 'reinclude species' WHERE identification = ? AND (status IS NULL OR status NOT IN (?))`;
 
-            db.run(sqlUpdateAll, [currentIdentification], function(err) {
+            db.run(sqlUpdateAll, [currentIdentification, 'valid record'], function(err) {
                 if (err) {
                     console.error('Error reincluding species in all records:', err);
                     return res.status(500).json({ success: false, message: 'Error reincluding species in all records' });
                 }
 
-                console.log(`Updated status to 'reinclude species' for all records with identification: ${currentIdentification}`);
+                console.log(`Updated status to 'reinclude species' for applicable records with identification: ${currentIdentification}`);
 
-                const sqlSelectAll = `SELECT processid FROM records WHERE identification = ?`;
-                db.all(sqlSelectAll, [currentIdentification], (selectAllErr, rows) => {
+                const sqlSelectAll = `SELECT processid FROM records WHERE identification = ? AND (status IS NULL OR status NOT IN (?))`;
+                db.all(sqlSelectAll, [currentIdentification, 'valid record'], (selectAllErr, rows) => {
                     if (selectAllErr) {
                         console.error('Error fetching updated records:', selectAllErr);
                     } else {
@@ -569,7 +594,7 @@ app.post('/submit', (req, res) => {
                 });
 
                 updateRecords();
-            });
+            });            
         }
 
         // **🔹 Handle "species name changes" (correct species name, typo, synonym)**

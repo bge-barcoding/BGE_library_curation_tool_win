@@ -143,7 +143,7 @@
             <ul>
                 <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results.</li>
                 <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species).</li>
-                <li><b>Stop Server:</b> Stops the server running in the backend. Use this only if you want to halt all server processes.</li>                
+                <li><b>Stop Server:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>                
             </ul>            
         </div>
     </div>
@@ -151,7 +151,7 @@
         <form id="serverControlForm">            
             <button type="button" onclick="applyFilter()" style="background-color: lightyellow; color: black;">Apply Filter</button>
             <button id="toggleInvalidRecords" style="background-color: lightcoral;">Hide Invalid Records</button>
-            <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Server</button>
+            <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Curation Tool</button>
             <span style="cursor: pointer;" onclick="toggleInfo('buttonsInfo')">❓</span>
     </form>
     <script>
@@ -583,6 +583,76 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
                 setTimeout(() => {
                     document.getElementById('errorMessage').style.display = 'none';
                 }, 3000);
+            }
+        }
+        function openRankingInfo() {
+            const popup = window.open("", "RankingInfo", "width=600,height=400,resizable=yes");
+            if (popup) {
+                popup.document.write(`
+                    <html>
+                        <head>
+                            <title>Ranking Information</title>
+                            <style>
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                    display: flex;
+                                    justify-content: center;
+                                    align-items: center;
+                                    height: 100%;
+                                    background-color: #f9f9f9;
+                                    font-family: Arial, sans-serif;
+                                }
+                                img {
+                                    max-width: 100%;
+                                    max-height: 100%;
+                                    border-radius: 10px;
+                                    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <img src="ressources/Ranking.jpg" alt="Ranking Explanation">
+                        </body>
+                    </html>
+                `);
+            } else {
+                alert("Popup blocked. Please allow popups for this website.");
+            }
+        }
+        function openBAGSInfo() {
+            const popup = window.open("", "BAGS_Info", "width=600,height=400,resizable=yes");
+            if (popup) {
+                popup.document.write(`
+                    <html>
+                        <head>
+                            <title>BAGS Information</title>
+                            <style>
+                                body {
+                                    margin: 0;
+                                    padding: 0;
+                                    display: flex;
+                                    justify-content: center;
+                                    align-items: center;
+                                    height: 100%;
+                                    background-color: #f9f9f9;
+                                    font-family: Arial, sans-serif;
+                                }
+                                img {
+                                    max-width: 100%;
+                                    max-height: 100%;
+                                    border-radius: 10px;
+                                    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <img src="ressources/BAGS.jpg" alt="BAGS Explanation">
+                        </body>
+                    </html>
+                `);
+            } else {
+                alert("Popup blocked. Please allow popups for this website.");
             }
         }
         async function stopServer() {
