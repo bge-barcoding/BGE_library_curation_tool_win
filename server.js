@@ -285,7 +285,7 @@ function calculateBAGSGrade(binCount, recordCount, binSharing, bins) {
     return 'E'; // Default to grade E if none of the above conditions match
 }
 app.post('/generate', (req, res) => {
-    const { searchTerm, searchType, searchTerm2, searchType2, columns } = req.body;
+    const { searchTerm, searchType, searchTerm2, searchType2, columns, includeInvalid } = req.body;
 
     if (!columns || !Array.isArray(columns)) {
         return res.status(400).json({ success: false, message: 'Invalid columns data' });
@@ -308,7 +308,11 @@ app.post('/generate', (req, res) => {
         params.push(`%${searchTerm2}%`);
     }
 
-    // Combine all conditions (no filtering out invalid records here)
+    // **Exclude invalid & excluded species unless "Show Invalid Records" is clicked**
+    if (!includeInvalid) {
+        conditions.push(`(status IS NULL OR status NOT IN ('invalid record', 'exclude species'))`);
+    }
+
     if (conditions.length > 0) {
         sqlQuery += ` WHERE ${conditions.join(' AND ')}`;
     }
