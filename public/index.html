@@ -141,9 +141,9 @@
         <div id="buttonsInfo" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
             <strong>Explanation of Buttons:</strong>
             <ul>
-                <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results.</li>
+                <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results. / Refreshs the HTML-table</li>
                 <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species).</li>
-                <li><b>Stop Server:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>                
+                <li><b>Stop Curation Tool:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>                
             </ul>            
         </div>
     </div>
@@ -179,7 +179,7 @@
             <div id="columnsInfo" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
                 <strong>How to use "Select Columns to Display":</strong>
                 <ul>
-                    <li>Check the boxes next to the column names you want to display in the table.</li>
+                    <li>Check the boxes next to the column names you want to display in the table and press <b>Apply Filter</b> to refresh the HTML-table.</li>
                     <li>Unchecked columns will not be visible in the table.</li>
                     <li>The table dynamically updates to reflect the selected columns.</li>
                     <li>This feature allows you to customize the table view for better focus on relevant data.</li>
@@ -359,11 +359,30 @@ let hideInvalidRecords = true; // Default to hiding invalid/excluded records
 document.getElementById('toggleInvalidRecords').addEventListener('click', async () => {
     hideInvalidRecords = !hideInvalidRecords;
 
+    // Preserve active filters
+    const searchTerm = document.getElementById('searchTerm').value;
+    const searchType = document.getElementById('searchType').value;
+    const searchTerm2 = document.getElementById('searchTerm2').value;
+    const searchType2 = document.getElementById('searchType2').value;
+
+    // Preserve current page before destroying the DataTable
+    let currentPage = 0;
+    if ($.fn.DataTable.isDataTable("#dataTable")) {
+        currentPage = $('#dataTable').DataTable().page();
+    }
+
     try {
         const response = await fetch('/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ includeInvalid: !hideInvalidRecords, columns: ['bin_uri', 'identification'] }) // Restore correct column order
+            body: JSON.stringify({ 
+                searchTerm, 
+                searchType, 
+                searchTerm2, 
+                searchType2, 
+                columns: ['bin_uri', 'identification'], // Ensure correct column order
+                includeInvalid: !hideInvalidRecords 
+            })  
         });
 
         if (!response.ok) throw new Error('Failed to fetch records');
@@ -376,8 +395,8 @@ document.getElementById('toggleInvalidRecords').addEventListener('click', async 
             $('#dataTable').DataTable().destroy();
         }
 
-        // **Reinitialize DataTable to restore pagination, sorting, and filtering**
-        $('#dataTable').DataTable({
+        // **Reinitialize DataTable and restore page number**
+        const dataTable = $('#dataTable').DataTable({
             "paging": true,
             "searching": true,
             "ordering": true,
@@ -388,13 +407,21 @@ document.getElementById('toggleInvalidRecords').addEventListener('click', async 
             }
         });
 
+        // Restore the previous page after table reload
+        dataTable.page(currentPage).draw('page');
+
+        // **Ensure button text reflects current state**
         document.getElementById('toggleInvalidRecords').textContent = hideInvalidRecords
             ? 'Show Invalid Records'
             : 'Hide Invalid Records';
+
+        console.log(`Show/Hide Invalid clicked. Page restored to ${currentPage + 1}. Button state: ${hideInvalidRecords ? 'Show Invalid Records' : 'Hide Invalid Records'}`);
+
     } catch (error) {
         console.error('Error fetching records:', error);
     }
 });
+
 
 
         function getColumnIndexByName(table, columnName) {
