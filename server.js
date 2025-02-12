@@ -15,6 +15,7 @@ let availableColumns = [];
 const xmlFile = path.join(__dirname, 'data.xml');
 const dbFile = path.join(__dirname, 'data.db');
 const logFilePath = path.join(__dirname, 'logfile.txt');
+const backupLogFilePath = path.join(__dirname, 'public', 'logfile_backup.txt'); // Define the backup log file path
 // Function to write data to XML file
 function writeToXML(data) {
     const xmlBuilder = new Builder();
@@ -39,12 +40,15 @@ function writeToLog(processId, action, oldValues, newValues) {
             logMessage += `    ${key}: ${oldValues[key]} -> ${newValues[key]}\n`;
         }
     });
-    fs.appendFile(logFilePath, logMessage, (err) => {
-        if (err) {
-            console.error('Error writing to logfile:', err);
-        } else {
-            console.log('Log entry added:', logMessage.trim());
-        }
+    // Append log message to both original and backup log files
+    [logFilePath, backupLogFilePath].forEach((filePath) => {
+        fs.appendFile(filePath, logMessage, (err) => {
+            if (err) {
+                console.error(`Error writing to ${filePath}:`, err);
+            } else {
+                console.log(`Log entry added to ${filePath}:`, logMessage.trim());
+            }
+        });
     });
 }
 // Initialize SQLite database and load data from XML
