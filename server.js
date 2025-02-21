@@ -414,10 +414,7 @@ app.post('/generate', (req, res) => {
                     ${row}
                     <td>${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? '' : BAGS}</td>
                     <td>${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? '' : binInfo.trim()}</td>
-                    <td><a href="${item.url}" target="_blank">Link</a></td>
-                    <td id="processid-${index}">${item.processid || ''}</td>
-                    <td>${item.country_ocean || ''}</td>
-                    <td>${item.ranking || ''}</td>
+                    <td><a href="${item.url}" target="_blank">Link</a></td>                                       
                     <td>
                         <select id="status-${index}">
                             <option value="" ${!item.status ? 'selected' : ''}></option>
@@ -447,18 +444,7 @@ app.post('/generate', (req, res) => {
                 <thead>
                     <tr>
                         ${tableHeaders}
-                        <th>url</th>
-                        <th>Process ID</th>
-                        <th>Country_ocean</th>
-                        <th>
-                            <span style="display: inline-flex; align-items: center;">
-                                Ranking 
-                                <span 
-                                    id="rankingInfoIcon" 
-                                    style="color: red; cursor: pointer; margin-left: 5px;" 
-                                    onclick="openRankingInfo()">?</span>
-                            </span>
-                        </th>
+                        <th>url</th>                        
                         <th>Status</th>
                         <th>Reason name correction</th>
                         <th>Correct species name</th>
