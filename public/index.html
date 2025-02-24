@@ -45,15 +45,28 @@
         th {
             background-color: #f2f2f2;
         }
+        .message-container {
+            height: 20px; /* Reserve space so no jumping happens */
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
         .error-message, .success-message {
-            font-size: 14px;
-            margin-top: 10px;
+            display: none; /* Hidden by default */
+            padding: 5px;
+            font-weight: bold;
+            border-radius: 5px;
+            text-align: center;
         }
-        .error-message {
-            color: red;
-        }
+
         .success-message {
-            color: green;
+            background-color: #4CAF50; /* Green */
+            color: white;
+        }
+
+        .error-message {
+            background-color: #F44336; /* Red */
+            color: white;
         }
         #logo {
             width: 200px;
@@ -180,8 +193,10 @@
              <!-- show number of different BINs -->
             </div>
         </div>
-            <div id="errorMessage" class="error-message" style="display: none;"></div>
-            <div id="successMessage" class="success-message" style="display: none;"></div>
+        <div class="message-container">
+            <div id="successMessage" class="success-message"></div>
+            <div id="errorMessage" class="error-message"></div>
+        </div>
         <div id="statisticsField" style="font-size: 16px; margin-top: 20px; font-weight: bold; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
             <!-- Statistics will be displayed here -->
             Statistics: <span id="statisticsText">No data available</span>
@@ -624,8 +639,9 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
                 }
             });
         }
+        // Function to submit a single row
         async function submitRow(event, index, processId) {
-            event.preventDefault();
+            if (event) event.preventDefault(); // Handle individual submit clicks
 
             const status = document.getElementById(`status-${index}`).value;
             const additionalStatus = document.getElementById(`additionalStatus-${index}`).value;            
@@ -672,23 +688,30 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
                     throw new Error('Failed to submit row');
                 }
 
-                document.getElementById('successMessage').innerText = 'Submit successful';
-                document.getElementById('successMessage').style.display = 'block';
-                setTimeout(() => {
-                    document.getElementById('successMessage').style.display = 'none';
-                }, 3000);
-
+                showMessage('success', 'Submit successful');
+                
                 // Remove the change from the changes array
                 changes = changes.filter(change => !(change.index === index && change.processId === processId));
             } catch (error) {
-                console.error('Error submitting row:', error);
-                document.getElementById('errorMessage').innerText = 'Submit failed';
-                document.getElementById('errorMessage').style.display = 'block';
-                setTimeout(() => {
-                    document.getElementById('errorMessage').style.display = 'none';
-                }, 3000);
+                showMessage('error', 'Submit failed');                
             }
         }
+        function showMessage(type, message) {
+            const messageElement = document.getElementById(type === 'success' ? 'successMessage' : 'errorMessage');
+
+            messageElement.innerText = message;
+            messageElement.style.display = "block";
+
+            setTimeout(() => {
+                messageElement.style.display = "none";
+            }, 3000);
+        }
+        // Function to submit all rows
+        function submitAllRows() {
+            document.querySelectorAll(".row-submit-button").forEach(button => {
+                button.click(); // Trigger each row's submit button
+            });
+        }    
         function openRankingInfo() {
             const popup = window.open("", "RankingInfo", "width=600,height=400,resizable=yes");
             if (popup) {

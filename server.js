@@ -434,7 +434,7 @@ app.post('/generate', (req, res) => {
                     </td>
                     <td><input type="text" id="species-${index}" value="${item.species || ''}"></td>
                     <td><input type="text" id="curator_notes-${index}" value="${item.curator_notes || ''}"></td>
-                    <td><button onclick="submitRow(event, ${index}, '${item.processid || ''}')">Submit</button></td>
+                    <td><button class="row-submit-button" onclick="submitRow(event, ${index}, '${item.processid || ''}')">Submit</button></td>
                 </tr>`;
         }).join('');
 
@@ -455,7 +455,9 @@ app.post('/generate', (req, res) => {
                 <tbody>
                     ${tableRows}
                 </tbody>
-            </table>`;        
+            </table>
+            <button id="submitAllButton" onclick="submitAllRows()">Submit All</button>
+            `;        
         
         res.json({success: true, table });
 
@@ -684,7 +686,7 @@ app.post('/search', (req, res) => {
                     </td>                    
                     <td><input type="text" id="species-${index}" value="${item.species || ''}"></td>
                     <td><input type="text" id="curator_notes-${index}" value="${item.curator_notes || ''}"></td>
-                    <td><button onclick="submitRow(event, ${index}, '${item.processid}')">Submit</button></td>
+                    <td><button class="row-submit-button" onclick="submitRow(event, ${index}, '${item.processid}')">Submit</button></td>
                 </tr>`;
         }).join('');
         const table = `
@@ -702,7 +704,9 @@ app.post('/search', (req, res) => {
                 <tbody>
                     ${tableRows}
                 </tbody>
-            </table>`;
+            </table>
+            <button id="submitAllButton" onclick="submitAllRows()">Submit All</button>
+            `;
         res.json({ success: true, table });
     });
 });
