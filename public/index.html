@@ -365,15 +365,15 @@ function colorizeBinUriCells() {
 }
 
 function applyStatusRowColoringAndExcludeRed() {
-    const table = $('#dataTable').DataTable().table().node();
-    if (!table) {
-        console.error('Table is undefined!');
+    const dataTable = $('#dataTable').DataTable();
+
+    if (!dataTable) {
+        console.error('DataTable is not initialized!');
         return;
     }
 
-    const rows = table.getElementsByTagName('tr');
     const statusColumnIndex = getColumnIndexByName('#dataTable', 'status');
-    const rankingColumnIndex = getColumnIndexByName('#dataTable', 'ranking'); // Get the ranking column index
+    const rankingColumnIndex = getColumnIndexByName('#dataTable', 'ranking');
 
     if (statusColumnIndex === -1) {
         console.error('Status column not found!');
@@ -384,8 +384,11 @@ function applyStatusRowColoringAndExcludeRed() {
         return;
     }
 
-    for (let row of rows) {
+    // Use DataTables API to iterate through all visible rows across all pages
+    dataTable.rows().every(function () {
+        const row = this.node();
         const cells = row.getElementsByTagName('td');
+
         if (cells.length > Math.max(statusColumnIndex, rankingColumnIndex)) {
             const statusCell = cells[statusColumnIndex];
             const rankingCell = cells[rankingColumnIndex];
@@ -404,13 +407,13 @@ function applyStatusRowColoringAndExcludeRed() {
             row.style.color = '';
             row.style.display = ''; // Ensure all rows are visible by default
 
-            // Apply light-grey background for ranking 1, 2, or 3 (default highlight)
+            // Apply light-grey background for ranking 1, 2, or 3
             if ([1, 2, 3].includes(rankingValue)) {
                 row.style.backgroundColor = '#d6d6d6'; // Light-grey
             }
 
             // Override with status-based colors
-            if (statusValue === 'valid record'|| statusValue === 'reinclude species') {
+            if (statusValue === 'valid record' || statusValue === 'reinclude species') {
                 row.style.backgroundColor = '#d4edda'; // Green
                 row.style.color = '#155724';
             } else if (statusValue === 'invalid record' || statusValue === 'exclude species') {
@@ -423,7 +426,7 @@ function applyStatusRowColoringAndExcludeRed() {
                 }
             }
         }
-    }
+    });
 }
 
 let hideInvalidRecords = true; // Default to hiding invalid/excluded records
