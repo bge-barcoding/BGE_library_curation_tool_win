@@ -456,7 +456,7 @@ app.post('/generate', (req, res) => {
                     ${tableRows}
                 </tbody>
             </table>
-            <button id="submitAllButton" onclick="submitAllRows()">Submit All</button>
+            <button id="submitAllButton" onclick="submitAllRows()">Submit All on Page</button>
             `;        
         
         res.json({success: true, table });
@@ -705,7 +705,7 @@ app.post('/search', (req, res) => {
                     ${tableRows}
                 </tbody>
             </table>
-            <button id="submitAllButton" onclick="submitAllRows()">Submit All</button>
+            <button id="submitAllButton" onclick="submitAllRows()">Submit All on Page</button>
             `;
         res.json({ success: true, table });
     });
