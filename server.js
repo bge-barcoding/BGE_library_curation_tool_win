@@ -3,262 +3,284 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
 const { parseString } = require('xml2js');
-const { Builder } = require('xml2js');
 const sqlite3 = require('sqlite3').verbose();
 const app = express();
 const PORT = 3000;
+
 app.use(express.json());
 app.use(express.static('public'));
 app.use(bodyParser.json());
+
+const DATA_FOLDER = path.join(__dirname, 'data');
+fs.mkdirSync(path.join(__dirname, 'logs'), { recursive: true });
+
 let db;
 let availableColumns = [];
-const xmlFile = path.join(__dirname, 'data.xml');
-const dbFile = path.join(__dirname, 'data.db');
-const logFilePath = path.join(__dirname, 'logs', 'changes.log');
-const backupLogFilePath = path.join(__dirname, 'public', 'ressources', 'backup_changes.log'); // Define the backup log file path
-// Function to write data to XML file
-function writeToXML(data) {
-    const xmlBuilder = new Builder();
-    const xmlData = xmlBuilder.buildObject({ records: { record: data } });
+let currentXmlFile = '';
+let currentDbFile = '';
 
-    fs.writeFile('output.xml', xmlData, 'utf8', (err) => {
-        if (err) {
-            console.error('Error writing to XML file:', err);
-        } else {
-            console.log('Data written to XML file successfully.');
+// Utility: Get datasets
+function getAvailableDatasets() {
+    const files = fs.readdirSync(DATA_FOLDER);
+    const datasetNames = new Set();
+
+    files.forEach(file => {
+        if (file.endsWith('.xml') || file.endsWith('.db')) {
+            datasetNames.add(file.replace(/\.(xml|db)$/, ''));
         }
     });
-}
-// Function to write to log file with detailed changes
-function writeToLog(processId, action, oldValues, newValues) {
-    const timestamp = new Date().toISOString();
-    let logMessage = `${timestamp} - Process ID: ${processId}, Action: ${action}\n`;
 
-    // Add old and new values for changed columns
-    Object.keys(oldValues).forEach(key => {
-        if (oldValues[key] !== newValues[key]) {
-            logMessage += `    ${key}: ${oldValues[key]} -> ${newValues[key]}\n`;
-        }
-    });
-    // Append log message to both original and backup log files
-    [logFilePath, backupLogFilePath].forEach((filePath) => {
-        fs.appendFile(filePath, logMessage, (err) => {
-            if (err) {
-                console.error(`Error writing to ${filePath}:`, err);
-            } else {
-                console.log(`Log entry added to ${filePath}:`, logMessage.trim());
-            }
-        });
-    });
+    return [...datasetNames];
 }
-// Initialize SQLite database and load data from XML
-function initDatabaseAndLoadData() {
-    if (fs.existsSync('data.db')) {
-        console.log('Database file already exists. Skipping initialization.');
-        db = new sqlite3.Database(dbFile, (err) => {
-            if (err) {
-                console.error('Error connecting to existing database:', err.message);
-            } else {
-                console.log('Successfully connected to the existing database.');
-                populateAvailableColumns(); // Load column names
-                // Test the connection by querying a table
-                db.all("SELECT name FROM sqlite_master WHERE type='table';", (err, rows) => {
-                    if (err) {
-                        console.error('Error querying database tables:', err.message);
-                    } else {
-                        console.log('Tables in the database:', rows);
-                    }
-                });
-            }
-        });
-        return;
+
+app.get('/datasets', (req, res) => {
+    res.json(getAvailableDatasets());
+});
+
+app.post('/switch-dataset', (req, res) => {
+    const { dataset } = req.body;
+       const xmlPath = path.join(DATA_FOLDER, `${dataset}.xml`);
+    const dbPath = path.join(DATA_FOLDER, `${dataset}.db`);
+
+    const dbExists = fs.existsSync(dbPath);
+    const xmlExists = fs.existsSync(xmlPath);
+
+    // Return error only if BOTH don't exist
+    if (!xmlExists && !dbExists) {
+        return res.status(404).send('Dataset not found');
     }
-    db = new sqlite3.Database(dbFile);
 
-    // Create table if it does not exist
-    db.run(`CREATE TABLE IF NOT EXISTS records (
-        url TEXT,
-        keep TEXT,
-        ranking TEXT,
-        BAGS TEXT,
-        status TEXT,
-        recordid TEXT,
-        taxonid TEXT,
-        processid TEXT PRIMARY KEY,
-        sampleid TEXT,
-        fieldid TEXT,
-        museumid TEXT,
-        record_id TEXT,
-        specimenid TEXT,
-        processid_minted_date TEXT,
-        bin_uri TEXT,
-        bin_created_date TEXT,
-        collection_code TEXT,
-        inst TEXT,
-        taxid TEXT,
-        kingdom TEXT,
-        phylum TEXT,
-        class TEXT,
-        "order" TEXT,
-        family TEXT,
-        subfamily TEXT,
-        tribe TEXT,
-        genus TEXT,
-        species TEXT,
-        subspecies TEXT,
-        species_reference TEXT,
-        identification TEXT,
-        identification_method TEXT,
-        identification_rank TEXT,
-        identified_by TEXT,
-        identifier_email TEXT,
-        taxonomy_notes TEXT,
-        sex TEXT,
-        reproduction TEXT,
-        life_stage TEXT,
-        short_note TEXT,
-        notes TEXT,
-        voucher_type TEXT,
-        tissue_type TEXT,
-        specimen_linkout TEXT,
-        associated_specimens TEXT,
-        associated_taxa TEXT,
-        collection_date TEXT,
-        collection_date_accuracy TEXT,
-        collection_event_id TEXT,
-        collection_time TEXT,
-        collection_notes TEXT,
-        geoid TEXT,
-        country_ocean TEXT,
-        country_iso TEXT,
-        province TEXT,
-        region TEXT,
-        sector TEXT,
-        site TEXT,
-        site_code TEXT,
-        coord TEXT,
-        coord_accuracy TEXT,
-        coord_source TEXT,
-        elev TEXT,
-        elev_accuracy TEXT,
-        depth TEXT,
-        depth_accuracy TEXT,
-        habitat TEXT,
-        sampling_protocol TEXT,
-        nuc TEXT,
-        nuc_basecount TEXT,
-        insdc_acs TEXT,
-        funding_src TEXT,
-        marker_code TEXT,
-        primers_forward TEXT,
-        primers_reverse TEXT,
-        sequence_run_site TEXT,
-        sequence_upload_date TEXT,
-        recordset_code_arr TEXT,
-        extrainfo TEXT,
-        country TEXT,
-        collection_note TEXT,
-        associated_specimen TEXT,
-        gb_acs TEXT,
-        nucraw TEXT,
-        SPECIES_ID TEXT,
-        TYPE_SPECIMEN TEXT,
-        SEQ_QUALITY TEXT,
-        HAS_IMAGE TEXT,
-        COLLECTORS TEXT,
-        IDENTIFIER TEXT,
-        ID_METHOD TEXT,
-        INSTITUTION TEXT,
-        PUBLIC_VOUCHER TEXT,
-        MUSEUM_ID TEXT,
-        additionalStatus TEXT,
-        curator_notes TEXT
-    )`, (err) => {
+    currentXmlFile = xmlExists ? xmlPath : '';
+    currentDbFile = dbPath;
+
+    if (db) db.close();
+
+    db = new sqlite3.Database(currentDbFile, (err) => {
         if (err) {
-            console.error('Error creating table:', err);
-            return;
+            console.error('Error opening DB:', err.message);
+            return res.status(500).send('Failed to open database');
         }
-        //db.run(`ALTER TABLE records ADD COLUMN additionalStatus TEXT`);
-        // Read data from XML file and insert into SQLite database
-        fs.readFile(xmlFile, 'utf8', (err, xmlData) => {
-            if (err) {
-                console.error('Error reading XML file:', err);
-                return;
-            }
-            parseString(xmlData, { explicitArray: false }, (parseErr, result) => {
-                if (parseErr) {
-                    console.error('Error parsing XML:', parseErr);
-                    return;
-                }
-                if (result && result.records && result.records.record) {
-                    const data = Array.isArray(result.records.record) ? result.records.record : [result.records.record];
 
-                    // Insert data into SQLite database
-                    const stmt = db.prepare(`INSERT OR REPLACE INTO records (
+        console.log(`Switched to dataset: ${dataset}`);
+
+        if (!dbExists && xmlExists) {
+            console.log('DB does not exist, initializing from XML...');
+            initDatabaseAndLoadData(currentXmlFile, db)
+                .then(() => {
+                    populateAvailableColumns();
+                    res.send('Dataset loaded and DB created from XML');
+                })
+                .catch(err => {
+                    console.error(err);
+                    res.status(500).send('Failed to load dataset from XML');
+                });
+        } else {
+            console.log('Using existing DB (XML not required).');
+            populateAvailableColumns();
+            res.send('Dataset loaded successfully (existing DB)');
+        }
+    });
+});
+
+// Core Function: Load data into SQLite
+async function initDatabaseAndLoadData(xmlPath, database) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(xmlPath, 'utf8', (readErr, xmlData) => {
+            if (readErr) return reject(`Error reading XML: ${readErr}`);
+
+            parseString(xmlData, { explicitArray: false }, (parseErr, result) => {
+                if (parseErr) return reject(`Error parsing XML: ${parseErr}`);
+
+                const records = Array.isArray(result.records.record)
+                    ? result.records.record
+                    : [result.records.record];
+
+                database.run(`CREATE TABLE IF NOT EXISTS records (                   
+                    url TEXT,
+                    keep TEXT,
+                    ranking TEXT,
+                    BAGS TEXT,
+                    status TEXT,
+                    recordid TEXT,
+                    taxonid TEXT,
+                    processid TEXT PRIMARY KEY,
+                    sampleid TEXT,
+                    fieldid TEXT,
+                    museumid TEXT,
+                    record_id TEXT,
+                    specimenid TEXT,
+                    processid_minted_date TEXT,
+                    bin_uri TEXT,
+                    bin_created_date TEXT,
+                    collection_code TEXT,
+                    inst TEXT,
+                    taxid TEXT,
+                    kingdom TEXT,
+                    phylum TEXT,
+                    class TEXT,
+                    "order" TEXT,
+                    family TEXT,
+                    subfamily TEXT,
+                    tribe TEXT,
+                    genus TEXT,
+                    species TEXT,
+                    subspecies TEXT,
+                    species_reference TEXT,
+                    identification TEXT,
+                    identification_method TEXT,
+                    identification_rank TEXT,
+                    identified_by TEXT,
+                    identifier_email TEXT,
+                    taxonomy_notes TEXT,
+                    sex TEXT,
+                    reproduction TEXT,
+                    life_stage TEXT,
+                    short_note TEXT,
+                    notes TEXT,
+                    voucher_type TEXT,
+                    tissue_type TEXT,
+                    specimen_linkout TEXT,
+                    associated_specimens TEXT,
+                    associated_taxa TEXT,
+                    collection_date TEXT,
+                    collection_date_start TEXT,
+                    collection_date_accuracy TEXT,
+                    collection_event_id TEXT,
+                    collection_time TEXT,
+                    collection_notes TEXT,
+                    geoid TEXT,
+                    country_ocean TEXT,
+                    country_iso TEXT,
+                    province TEXT,
+                    region TEXT,
+                    sector TEXT,
+                    site TEXT,
+                    site_code TEXT,
+                    coord TEXT,
+                    coord_accuracy TEXT,
+                    coord_source TEXT,
+                    elev TEXT,
+                    elev_accuracy TEXT,
+                    depth TEXT,
+                    depth_accuracy TEXT,
+                    habitat TEXT,
+                    sampling_protocol TEXT,
+                    nuc TEXT,
+                    nuc_basecount TEXT,
+                    insdc_acs TEXT,
+                    funding_src TEXT,
+                    marker_code TEXT,
+                    primers_forward TEXT,
+                    primers_reverse TEXT,
+                    sequence_run_site TEXT,
+                    sequence_upload_date TEXT,
+                    recordset_code_arr TEXT,
+                    extrainfo TEXT,
+                    country TEXT,
+                    collection_note TEXT,
+                    associated_specimen TEXT,
+                    gb_acs TEXT,
+                    nucraw TEXT,
+                    SPECIES_ID TEXT,
+                    TYPE_SPECIMEN TEXT,
+                    SEQ_QUALITY TEXT,
+                    HAS_IMAGE TEXT,
+                    COLLECTORS TEXT,
+                    IDENTIFIER TEXT,
+                    ID_METHOD TEXT,
+                    INSTITUTION TEXT,
+                    PUBLIC_VOUCHER TEXT,
+                    MUSEUM_ID TEXT,
+                    additionalStatus TEXT,
+                    curator_notes TEXT
+
+                )`, (createErr) => {
+                    if (createErr) return reject(`Error creating table: ${createErr}`);
+
+                    const insertStmt = database.prepare(`INSERT OR REPLACE INTO records ( 
                         url, keep, ranking, BAGS, status, recordid, taxonid, processid, sampleid, fieldid, museumid, record_id, specimenid,
                         processid_minted_date, bin_uri, bin_created_date, collection_code, inst, taxid, kingdom, phylum, class, "order",
                         family, subfamily, tribe, genus, species, subspecies, species_reference, identification, identification_method,
                         identification_rank, identified_by, identifier_email, taxonomy_notes, sex, reproduction, life_stage, short_note,
-                        notes, voucher_type, tissue_type, specimen_linkout, associated_specimens, associated_taxa, collection_date,
+                        notes, voucher_type, tissue_type, specimen_linkout, associated_specimens, associated_taxa, collection_date, collection_date_start,
                         collection_date_accuracy, collection_event_id, collection_time, collection_notes, geoid, country_ocean,
                         country_iso, province, region, sector, site, site_code, coord, coord_accuracy, coord_source, elev, elev_accuracy,
                         depth, depth_accuracy, habitat, sampling_protocol, nuc, nuc_basecount, insdc_acs, funding_src, marker_code,
                         primers_forward, primers_reverse, sequence_run_site, sequence_upload_date, recordset_code_arr, extrainfo, country,
                         collection_note, associated_specimen, gb_acs, nucraw, SPECIES_ID, TYPE_SPECIMEN, SEQ_QUALITY, HAS_IMAGE, COLLECTORS,
                         IDENTIFIER, ID_METHOD, INSTITUTION, PUBLIC_VOUCHER, MUSEUM_ID, curator_notes
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-                    
-                    data.forEach(record => {
-                        const url = record.processid ? `https://portal.boldsystems.org/record/${record.processid}` : null;
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
-                        stmt.run(
-                            url, record.keep, record.ranking, record.BAGS, record.status, record.recordid, record.taxonid, record.processid,
-                            record.sampleid, record.fieldid, record.museumid, record.record_id, record.specimenid, record.processid_minted_date,
-                            record.bin_uri, record.bin_created_date, record.collection_code, record.inst, record.taxid, record.kingdom,
-                            record.phylum, record.class, record.order, record.family, record.subfamily, record.tribe, record.genus,
+                    records.forEach(record => {
+                        const values = [
+                            record.processid ? `https://portal.boldsystems.org/record/${record.processid}` : null,
+                            record.keep, record.ranking, record.BAGS, record.status, record.recordid, record.taxonid, record.processid, record.sampleid,
+                            record.fieldid, record.museumid, record.record_id, record.specimenid,
+                            record.processid_minted_date, record.bin_uri, record.bin_created_date, record.collection_code, record.inst, record.taxid,
+                            record.kingdom, record.phylum, record.class, record["order"], record.family, record.subfamily, record.tribe, record.genus,
                             record.species, record.subspecies, record.species_reference, record.identification, record.identification_method,
-                            record.identification_rank, record.identified_by, record.identifier_email, record.taxonomy_notes, record.sex,
-                            record.reproduction, record.life_stage, record.short_note, record.notes, record.voucher_type, record.tissue_type,
-                            record.specimen_linkout, record.associated_specimens, record.associated_taxa, record.collection_date,
-                            record.collection_date_accuracy, record.collection_event_id, record.collection_time, record.collection_notes,
-                            record.geoid, record.country_ocean, record.country_iso, record.province, record.region, record.sector, record.site,
-                            record.site_code, record.coord, record.coord_accuracy, record.coord_source, record.elev, record.elev_accuracy,
-                            record.depth, record.depth_accuracy, record.habitat, record.sampling_protocol, record.nuc, record.nuc_basecount,
-                            record.insdc_acs, record.funding_src, record.marker_code, record.primers_forward, record.primers_reverse,
-                            record.sequence_run_site, record.sequence_upload_date, record.recordset_code_arr, record.extrainfo, record.country,
-                            record.collection_note, record.associated_specimen, record.gb_acs, record.nucraw, record.SPECIES_ID, record.TYPE_SPECIMEN,
-                            record.SEQ_QUALITY, record.HAS_IMAGE, record.COLLECTORS, record.IDENTIFIER, record.ID_METHOD, record.INSTITUTION,
-                            record.PUBLIC_VOUCHER, record.MUSEUM_ID, record.curator_notes
-                        );
-                    });
-                    stmt.finalize();
+                            record.identification_rank, record.identified_by, record.identifier_email, record.taxonomy_notes, record.sex, record.reproduction,
+                            record.life_stage, record.short_note, record.notes, record.voucher_type, record.tissue_type, record.specimen_linkout,
+                            record.associated_specimens, record.associated_taxa, record.collection_date, record.collection_date_start,
+                            record.collection_date_accuracy, record.collection_event_id, record.collection_time, record.collection_notes, record.geoid,
+                            record.country_ocean, record.country_iso, record.province, record.region, record.sector, record.site, record.site_code,
+                            record.coord, record.coord_accuracy, record.coord_source, record.elev, record.elev_accuracy, record.depth, record.depth_accuracy,
+                            record.habitat, record.sampling_protocol, record.nuc, record.nuc_basecount, record.insdc_acs, record.funding_src,
+                            record.marker_code, record.primers_forward, record.primers_reverse, record.sequence_run_site, record.sequence_upload_date,
+                            record.recordset_code_arr, record.extrainfo, record.country, record.collection_note, record.associated_specimen,
+                            record.gb_acs, record.nucraw, record.SPECIES_ID, record.TYPE_SPECIMEN, record.SEQ_QUALITY, record.HAS_IMAGE, record.COLLECTORS,
+                            record.IDENTIFIER, record.ID_METHOD, record.INSTITUTION, record.PUBLIC_VOUCHER, record.MUSEUM_ID, record.curator_notes
+                        ].map(value => typeof value === 'object' ? JSON.stringify(value) : value || null);
 
-                    // Set available columns for filtering
-                    availableColumns = Object.keys(data[0]);
-                    console.log('Data loaded from XML and inserted into SQLite database.');
-                } else {
-                    console.error('Invalid XML structure.');
-                }
+                        insertStmt.run(values);
+                    });
+                    // insertStmt.finalize(() => {
+                    //     populateAvailableColumns();
+                    //     resolve();
+                    // });
+                });
             });
         });
     });
 }
 
 function populateAvailableColumns() {
+    if (!db) return;
+
     db.all("PRAGMA table_info(records);", (err, rows) => {
         if (err) {
-            console.error("Error fetching column info:", err.message);
+            console.error("Error fetching columns:", err.message);
         } else {
-            availableColumns = rows.map(row => row.name); // Extract column names
+            availableColumns = rows.map(row => row.name);
             console.log("Available columns:", availableColumns);
         }
     });
 }
 
-// Initialize database and load data on server start
-initDatabaseAndLoadData();
-// API endpoints
+function writeToLog(processId, action, oldValues, newValues) {
+    const timestamp = new Date().toISOString();
+    let logMessage = `${timestamp} - Process ID: ${processId}, Action: ${action}\n`;
+
+    Object.keys(oldValues).forEach(key => {
+        if (oldValues[key] !== newValues[key]) {
+            logMessage += `    ${key}: ${oldValues[key]} -> ${newValues[key]}\n`;
+        }
+    });
+
+    const logFilePath = path.join(__dirname, 'logs', 'changes.log');
+    const backupLogFilePath = path.join(__dirname, 'public', 'ressources', 'backup_changes.log');
+
+    [logFilePath, backupLogFilePath].forEach((filePath) => {
+        fs.appendFile(filePath, logMessage, (err) => {
+            if (err) console.error(`Error writing to ${filePath}:`, err);
+        });
+    });
+}
+
+// Guarded API endpoints
 app.get('/records', (req, res) => {
+    if (!db) return res.status(500).send('Database not initialized');
+
     db.all('SELECT * FROM records', (err, rows) => {
         if (err) {
             console.error('Error fetching records:', err.message);
@@ -272,6 +294,12 @@ app.get('/records', (req, res) => {
 app.get('/columns', (req, res) => {
     res.json({ availableColumns });
 });
+
+// Start server
+// app.listen(PORT, () => {
+//     console.log(`Server is running on port ${PORT}`);
+// });
+
 // Function to calculate BAGS grading for a species
 function calculateBAGSGrade(binCount, recordCount, binSharing, bins) {
     if (binSharing) return 'E'; // BIN-sharing event detected
@@ -593,7 +621,7 @@ app.post('/submit', (req, res) => {
             });            
         }
 
-        // **🔹 Handle "species name changes" (correct species name, typo, synonym)**
+        // **🔹 Handle "species name changes" (correct species name, typo, synonym, misidentified, empty)**
         else if (species && species.trim() !== currentSpecies) {
             const updatedSpecies = species.trim();
             changes.oldValues.species = currentSpecies;
@@ -857,6 +885,17 @@ app.post('/stopServer', (req, res) => {
 // Start server
 const server = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+});
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+});
+
+process.on('exit', (code) => {
+    console.log(`Process exited with code ${code}`);
 });
 // Close database connection on server shutdown
 process.on('SIGINT', () => {
