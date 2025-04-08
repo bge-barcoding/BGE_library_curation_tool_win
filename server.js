@@ -14,8 +14,8 @@ let db;
 let availableColumns = [];
 const xmlFile = path.join(__dirname, 'data.xml');
 const dbFile = path.join(__dirname, 'data.db');
-const logFilePath = path.join(__dirname, 'logfile.txt');
-const backupLogFilePath = path.join(__dirname, 'public', 'logfile_backup.txt'); // Define the backup log file path
+const logFilePath = path.join(__dirname, 'logs', 'changes.log');
+const backupLogFilePath = path.join(__dirname, 'public', 'ressources', 'backup_changes.log'); // Define the backup log file path
 // Function to write data to XML file
 function writeToXML(data) {
     const xmlBuilder = new Builder();
@@ -636,13 +636,31 @@ app.post('/submit', (req, res) => {
                         res.status(404).json({ success: false, message: 'No records found with the current species name' });
                     }
                 });
+            } else if (additionalStatus === 'misidentified' || !additionalStatus) {
+                const sqlUpdateOne = `UPDATE records SET species = ? WHERE processid = ?`;
+                db.run(sqlUpdateOne, [updatedSpecies, processId], function(err) {
+                    if (err) {
+                        console.error('Error updating species in the specific record:', err);
+                        return res.status(500).json({ success: false, message: 'Error updating species in the specific record' });
+                    }
+
+                    console.log(`Updated species name from ${currentSpecies} to ${updatedSpecies} for process ID ${processId}`);
+
+                    const logChanges = {
+                        oldValues: { species: currentSpecies },
+                        newValues: { species: updatedSpecies }
+                    };
+                    writeToLog(processId, 'Updated', logChanges.oldValues, logChanges.newValues);
+
+                    updateRecords();
+                });
             } else {
                 updateRecords(true);
             }
         } else {
             // Handle other cases (just update single record)
             updateRecords();
-        }
+        }      
     });
 });
 app.post('/search', (req, res) => {
