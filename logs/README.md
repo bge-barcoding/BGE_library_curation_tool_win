@@ -1,0 +1,1 @@
+Once you have finished all curation activities, please copy the logfile changes.log and send it your contact at the SNSB/ZSM (Staatliche Naturwissenschaftliche Sammlungen Bayerns / Zoologische Staatssammlung München ). 
