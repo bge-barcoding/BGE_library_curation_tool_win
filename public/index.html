@@ -168,17 +168,18 @@
             <ul>
                 <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results. / Refreshs the HTML-table</li>
                 <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species).</li>
-                <li><b>Stop Curation Tool:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>                
+                <li><b>Switch Dataset:</b> To switch datasets: Select one from the dropdown, click 'Switch dataset', confirm the popup with 'OK', then click 'Apply Filter' to view the new dataset.</li>                
+                <li><b>Stop Curation Tool:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>
             </ul>            
         </div>
     </div>
         <div class="server-control">
         <form id="serverControlForm">            
             <button type="button" onclick="applyFilter()" style="background-color: lightyellow; color: black;">Apply Filter</button>
-            <button id="toggleInvalidRecords" style="background-color: lightcoral;">Hide Invalid Records</button>
-            <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Curation Tool</button>
+            <button id="toggleInvalidRecords" style="background-color: lightcoral;">Hide Invalid Records</button>            
             <select id="dataset-selector"></select>
             <button onclick="switchDataset()">Switch Dataset</button>
+            <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Curation Tool</button>
             <span style="cursor: pointer;" onclick="toggleInfo('buttonsInfo')">❓</span>
     </form>
     <script>
