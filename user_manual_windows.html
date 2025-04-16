@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library Curation Tool User Manual</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      padding: 2em;
+      max-width: 1000px;
+      margin: auto;
+      background-color: #fdfdfd;
+      color: #333;
+    }
+    h1, h2, h3, h4 {
+      color: #005a8d;
+    }
+    code {
+      background: #eee;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    .tip, .warning {
+      padding: 1em;
+      margin: 1em 0;
+      border-left: 5px solid;
+    }
+    .tip {
+      background-color: #e7f4e4;
+      border-color: #4caf50;
+    }
+    .warning {
+      background-color: #fdecea;
+      border-color: #f44336;
+    }
+    ul {
+      list-style-type: disc;
+      padding-left: 20px;
+    }
+    nav {
+      margin-bottom: 2em;
+    }
+    nav a {
+      display: block;
+      color: #005a8d;
+      text-decoration: none;
+      margin-bottom: 0.5em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 1em;
+      overflow-x: auto;
+      border-radius: 5px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 0.6em;
+      text-align: left;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #ccc;
+      margin: 1em 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Library Curation Tool – User Manual (Windows)</h1>
+  <p><strong>Date:</strong> 14 April 2024</p>
+  <p><strong>Project:</strong> Biodiversity Genomics Europe – WP10: T10.1 Reference Library Curation</p>
+  <p><img src="public/ressources/logo_bge.png" alt="BGE logo" width='500'></p>
+
+  <nav>
+    <h2>Contents</h2>
+    <a href="#introduction">1. Introduction</a>
+    <a href="#setup">2. Setup</a>
+    <a href="#starting">3. Starting the Tool</a>
+    <a href="#usage">4. Using the Tool</a>
+      <ol>
+        <a href="#interface">4.1. Interface overview</a>
+        <a href="#buttons">4.2. Buttons and Data Entry Fields</a>
+        <a href="#filter">4.3. Filtering records</a>
+        <a href="#statistics">4.4. Statistics</a>
+        <a href="#checkbox">4.5. Columns checkbox</a>
+        <a href="#records">4.6. Records table</a>
+        <a href="#changes">4.7. Submitting changes</a>
+        <a href="#highlighted">4.8. Row Highlighting</a>
+      </ol>
+    <a href="#data">5. Data Management</a>
+    <a href="#stopping">6. Stopping the Tool</a>
+    <a href="#troubleshooting">7. Troubleshooting</a>
+    <a href="#notes">8. Notes</a>
+  </nav>
+
+  <h2 id="introduction">1. Introduction</h2>
+  <p>This standalone Library Curation Tool allows taxonomic experts to curate sequence records to build a European animal species reference library as part of the EU-Horizon Biodiversity Genomics Europe project.</p>
+
+  <h2 id="setup">2. Setup</h2>
+  <ol>
+    <li>Locate and extract <code>curation_tool_windows.zip</code>.</li>
+    <li>Choose a destination folder (e.g., <code>C:\curation_tool_windows</code>).</li>
+    <li>Ensure the folder structure looks like this:</li>
+  </ol>
+  <pre>
+ProjectFolder/
+├── <b>data/              # input data files (db or xml format)</b>
+├── <b>logs/              # log file for changed data (changes.log)</b>
+├── node/              # portable Node.js runtime
+├── node_modules/      # dependencies installed via npm
+├── public/            # frontend interface for the tool
+├── package.json       # project metadata and dependencies
+├── README.md          # project documentation
+├── server.js          # backend logic
+└── <b>start_tool.bat     # starts the tool</b>
+  </pre>
+  <div class="tip">
+    <strong>Tip:</strong> Load your data into <code>data/</code> before starting. If only an <code>.xml</code> file is present, a <code>.db</code> file will be generated automatically.
+  </div>
+  <div class="warning">
+    <strong>Warning:</strong> Do not delete <code>data/</code> , <code>logs/</code> and <code>changes.log</code>
+  </div>
+  <h2 id="starting">3. Starting the Tool</h2>
+  <ol>
+    <li>Double-click <code>start_tool.bat</code>.</li>
+    <li>If prompted by Windows Defender, click <strong>"More info"</strong> → <strong>"Run anyway"</strong>.</li>
+    <li>A terminal opens and the tool launches in your default browser.</li>
+    <li>If the browser doesn't open, go to <a href="http://localhost:3000" target="_blank">http://localhost:3000</a>.</li>
+  </ol>
+  
+  <ol>
+  <strong> To load and switch between datasets:</strong> Choose the corresponding dataset from the <strong>dropdown</strong>, click <strong>Switch dataset</strong>, confirm the popup with <strong>OK</strong>, then click <strong>Apply Filter</strong> to view the new dataset. If a db file already exists, this file will be used. Otherwise a db file will be generated from the xml file. <strong>This may take a while.</strong> In this case make sure that you wait until the file is <strong>complete</strong> (the size of the corresponding db file in the subfolder data should not change anymore) and press the <strong>Apply Filter</strong> button to refresh the HTML table. Alternatively, you can press the <strong>Apply Filter</strong> button from time to time, until the amount of total records in the statistics panel is stable.
+  </ol> 
+
+  <h2 id="usage">4. Using the Tool</h2>
+  <h3 id="interface">4.1. Interface overview</h3>
+  <p>When the tool is launched, you'll see the following:</p>
+  <p><img src="public/ressources/user_manual/screenshot_main_interface.png" alt="Main Tool Interface"></p>
+
+  <h3 id="buttons">4.2. Buttons and Data Entry fields</h3>
+  <table>
+    <tr><th>Button / Field</th><th>Function</th></tr>
+    <tr><th>Filter</th></tr>
+    <tr><td><img src="public/ressources/user_manual/search_field.png" alt="Search Field:"><img src="public/ressources/user_manual/search_type.png" alt="Search Type:">
+    </td><td><ul>Enter a value in the <b>Search Term</b> field.</ul><ul>Check a box with the <b>Search Type</b> you wish in <b>Select Columns to Display:</b> to make it available in the Search Type dropdown menu.</ul><ul>Select a corresponding <b>Search Type</b> from the dropdown menu.</ul><ul>If needed, you can use Search Term 2 and its corresponding Search Type to add an additional filter.</ul><ul>Click <b>Apply Filter</b> to display results matching your criteria.</ul></td></tr>
+    <tr><th>Control Panel</th></tr>
+    <tr><td><img src="public/ressources/user_manual/apply_filter.png" alt="Apply Filter"></td>
+      <td>Filters the records based on your selected criteria and displays the results. / Refreshes the HTML-table</td></tr>
+    <tr><td><img src="public/ressources/user_manual/hide.png" alt="Show/Hide Invalid Records"></td>
+      <td>Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species)</td></tr>  
+    <tr><td><img src="public/ressources/user_manual/available_data.png" alt="Available data"><img src="public/ressources/user_manual/switch.png" alt="Switch Dataset"></td>
+      <td>To switch datasets: Select one from the dropdown, click <b>Switch Dataset</b>, confirm the popup with <b>OK</b>, then click <b>Apply Filter</b> to view the new dataset (in this case Alucitidae)</td></tr>
+    <tr><td><img src="public/ressources/user_manual/stop.png" alt="Stop Curation Tool"></td>
+      <td>Stop the server running in the backend. Use this only if you want to end the Library Curation Tool.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/question_mark.png" alt="red question mark"></td>
+      <td>Click on the <b>red question mark</b> in order to open a context menu with supporting information.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/recordsonpage.png" alt="records on page dropdown"></td>
+      <td>Adjust records shown on page.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/generalsearch.png" alt="general search field"></td>
+      <td>Additional search field. Search the whole table over all columns and lines.</td></tr>
+    <tr><th>HTML table</th></tr>
+    <tr><td><img src="public/ressources/user_manual/ranking.png" alt="Ranking"></td><td><b>Ranking:</b>
+     Ranking system to pick representatives for each haplotype / species <br> 
+     Show ranking scheme by clicking on the <b>red question mark</b> beside column Ranking in the HTML table</td></tr>
+    <tr><td><img src="public/ressources/user_manual/bags.png" alt="BAGS"></td><td><b>BAGS: Barcode, Audit & Grade System</b>
+      <ul>        
+        <li>Grade A = >10 speciemens in 1 BIN</li>
+        <li>Grade B = 3-10 speciemens in 1 BIN</li>
+        <li>Grade C = >1 BIN</li>
+        <li>Grade D = <3 speciemens in 1 BIN</li>
+        <li>Grade E = BIN sharing (>1 speciens in single BIN)</li>
+      </ul>
+      Show BAGS scheme by clicking on the <b>red question mark</b> beside column BAGS in the HTML table      
+    </td></tr>
+    <tr><td><img src="public/ressources/user_manual/bininfo.png" alt="BIN Info"></td>
+      <td><b>BIN Info:</b> Dynamically shows <b>BIN-sharing</b> and <b>BIN-splitting</b> events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records or species the values will be recalculated.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/link.png" alt="Link"></td>
+      <td>Direct link to the corresponding record on <a href="https://portal.boldsystems.org" target="_blank">https://portal.boldsystems.org</a>.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/status.png" alt="Status - dropdown"></td>
+      <td><b>Status - dropdown:</b> Mark records as <b>valid</b> or <b>invalid</b> and <b>exclude species</b> or <b>reinclude species</b> (a popup window will open and ask you if you are sure that you want to remove this species).Save changes by pressing the <b>Submit</b> button. Press the <b>Apply Filter</b> button to refresh the HTML-table and see the changes. Records marked as <u>valid appear green</u> and such marked as <u>invalid in red and will be hidden</u>. The number of BINs and records in the Statistics Panel is adjusted accordingly. Press the <b>Show/Hide Invalid Records</b> button to show them again (maybe you have to press the button several times to see a result).</td></tr>
+    <tr><td><img src="public/ressources/user_manual/name_correction.png" alt="Reason Name Correction - dropdown"></td>
+      <td><b>Reason name correction - dropdown:</b> select a reason from the dropdown, if you correct a species name: <u>misidentified or no selection allows the correction of the species name for a single row synonym and typo will correct the species name for the whole selected species</u></td></tr>
+    <tr><td><img src="public/ressources/user_manual/correctspeciesname.png" alt="Correct Species Name"></td>
+      <td><b>Correct species name:</b> In case of misidentification, typo, synonym, etc. you can correct the species name here.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/submit.png" alt="Submit"></td>
+      <td>Action: At the end of each line. Press this to save all changes you made to this line.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/submitallonpage.png" alt="Submit All on Page"></td>
+      <td>At the end of the page. Press this to save all changes you made on this page (alternative to Submit in case of changes to multiple lines.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/curator_notes.png" alt="Curator Notes"></td>
+      <td><b>Curator_notes:</b> Free text field for your annotations.</td></tr>    
+  </table>
+
+  <h3 id="filter">4.3. Filtering Records</h3>
+  <ol>
+    <li>Select a column in the <strong>Columns Checkbox field</strong>.</li>
+    <li>Type a search term in <strong>Search Term</strong>.</li>
+    <li>Choose the corresponding <strong>Search Type</strong> from the dropdown.</li>
+    <li>Click <strong>Apply Filter</strong> to update results.</li>
+    <li>Use the second <strong>Search Term</strong> and <strong>Search Type</strong>to refine results.</li>
+  </ol>
+  <p><img src="public/ressources/user_manual/filter_field.png" alt="Search Fields (Search Term and Search Type)"></p>
+
+  <h3 id="statistics">4.4. Statistics</h3>
+  <ol>Dynamically shows numbers of total records, curated records, uncurated records, species, BINs, BIN-splitting and BIN-sharing events.</ol>
+  <p><img src="public/ressources/user_manual/statistics.png" alt="Satistics panel"></p>
+
+  <h3 id="checkbox">4.5. Columns checkbox</h3>
+  <ol>
+    <li>Use the <strong>Columns Checkbox field</strong> to choose which columns to display in the <strong>Data Table</strong> and in the <strong>Search Type</strong> field.</li>
+    <li>Adjust columns and reapply to explore specific data subsets.</li>
+  </ol>
+  <p><img src="public/ressources/user_manual/select_columns.png" alt="Columns Checkbox field"></p>
+
+  <h3 id="records">4.6. Records table</h3>
+  <ul>
+    <li><b>Shows predefined the following columns:</b> bin_uri, processid, identification (current species name), Country_Ocean, Ranking, BAGS, BIN info, url, Status, Reason name correction, Correct species name, Curator_notes and Actions.</li>
+    <div class="warning"><b>Important:</b> <b>Records highlighted in grey (Ranking 1-3)</b> are pre-selected for the reference library. You don't need to validate them. If you want to exclude them, set them as invalid. <b>Records not highlighted (with white background, Ranking 4-6)</b> are not intended to be part of the Reference Library. If you want to include them, please validate them.</div>
+    <p><img src="public/ressources/user_manual/records_highlighted.png" alt="Highlighted Records in grey"></p>
+    <li><b>Add further columns</b> by checking the corresponding checkboxes in the <strong>Columns Checkbox field</strong> and press <strong>Apply Filter</strong>.</li>
+    <li><strong>BIN Info:</strong> Dynamically shows BIN-sharing and BIN-splitting events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records or species the values will be recalculated.</li>
+    <li><strong>Link:</strong> Press <strong>Link</strong> in the <strong>url column</strong> and a new tab with the corresponding record on the BOLD homepage will open.</li>    
+  </ul>
+
+  <h3 id="changes">4.7. Submitting changes</h3>
+  <ul>
+    <div class="warning"><b>Important:</b> Please save all changes you make by pressing the <strong>Submit button</strong> at the end of the line or the <strong>Submit All on Page</strong> button at the end of the page!!!</div>
+    <li><strong>Status:</strong> You can mark records as valid or invalid by choosing the corresponding option from the <strong>Status dropdown menu</strong> and pressing the <strong>Submit</strong> button. Your change will be saved to the logfile and the database. However, you will only see a change, if you press the <strong>Apply Filter</strong> button to refresh the HTML-table. Records marked as valid appear green and such marked as invalid in red and will be hidden. The number of BINs and records in the <strong>Statistics Panel</strong> is adjusted accordingly. Press the <strong>Show/Hide Invalid Records</strong> button to show them again (maybe you have to press the button several times to see a result). 
+    <p><img src="public/ressources/user_manual/status_color.png" alt="Valid and Invalid Records coloration"></p>
+    Further you can exclude and also reinclude a whole species by selecting the option exclude species or reinclude species from the <strong>Status dropdown menu</strong>. When you press the <strong>Submit</strong> button a popup window will open and ask you if you are sure that you want to remove this species. Finish the action by pressing the <strong>Submit</strong> button. The HTML-table shows your changes only after refreshing by pressing the <strong>Apply Filter</strong> button.</li>
+    <li><strong>Correct species name:</strong> In order to correct a species name, select a reason from the dropdown menu in <strong>Reason name correction</strong>.  This will have different effects on the <strong>Correct species name</strong> fields: misidentified or no selection allows the correction of the species name for a single row, synonym and typo will correct the species name for the whole selected species. Then correct the name in the field <strong>Correct species name</strong>. Finish the action by pressing the <strong>Submit</strong> button. The HTML-table shows your changes only after refreshing by pressing the Apply Filter button.</li>
+    <li><strong>General:</strong> Save your changes by pressing the <strong>Submit</strong> button. The action will be saved to the logfile and the database. However, you will see no changes in the HTML-table, until you refresh the table by pressing the <strong>Apply Filter</strong> button.</li>
+    <li><b>Curator_notes:</b> This is a free text field, where you can add additional information. Press <strong>Submit</strong> to save.</li>
+  </ul>
+
+
+  <h3 id="highlighted">4.8. Row Highlighting</h3>
+  <ul>
+    <li><strong>Green rows:</strong> Marked valid</li>
+    <li><strong>Red rows:</strong> Marked invalid or excluded</li>
+    <li><strong>White rows (Ranking 4–6):</strong> Not selected, but available for manual inclusion if validated</li>
+    <li><strong>Grey rows (Ranking 1–3):</strong> Pre-selected for the reference library</li>
+  </ul>
+  <p><img src="public/ressources/user_manual/table_color.png" alt="Records table with valid records in green, invalid in red and preselected in grey"></p>
+  
+  <h2 id="data">5. Data Management</h2>
+  <div class="warning"><b>Important:</b> Send <code>changes.log</code> file to the coordination team after you finished curation!!!</div>
+  <ul>
+    <li><strong>Input:</strong> Ensure corresponding <code>.xml</code> or <code>.db</code> files are stored in the subfolder <code>data/</code></li>
+    <li><strong>Output:</strong> Updates stored in <code>.db</code> file</li>
+    <li><strong>Logs:</strong> <code>logs/changes.log</code> tracks all changes</li>
+  </ul>
+
+  <h2 id="stopping">6. Stopping the Tool</h2>
+  <p>Click <strong>Stop Curation Tool</strong>. Then close both the browser and terminal windows.</p>
+
+  <h2 id="troubleshooting">7. Troubleshooting</h2>
+  <h4>Tool won't start:</h4>
+  <ul>
+    <li>Ensure <code>start_tool.bat</code> is used.</li>
+    <li>Check that the <code>data/</code> folder contains <code>.xml</code> or <code>.db</code>.</li>
+    <li>Rename the project folder and try again.</li>
+  </ul>
+
+  <h4>Browser doesn't open:</h4>
+  <p>Navigate to <a href="http://localhost:3000" target="_blank">http://localhost:3000</a>.</p>
+
+  <h2 id="notes">8. Notes</h2>
+  <ul>
+    <li>Always stop the server properly via the interface.</li>
+    <li><b style='color:red;'>Send your <code>changes.log</code> file to the coordination team after curation.</b></li>
+    <li>Project site: <a href="https://biodiversitygenomics.eu/" target="_blank">https://biodiversitygenomics.eu/</a></li>
+    <li>This curation_tool has been devloped within the EU-Horizon Project: Biodiversity Genomics Europe by the SNSB (Staatliche Naturwissenschaftliche Sammlungen Bayerns). Developers: Stephan Kühbandner, Fabian Deister</li>
+  </ul>
+</body>
+</html>
