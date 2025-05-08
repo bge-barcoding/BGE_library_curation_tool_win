@@ -125,6 +125,38 @@
             display: flex;
             align-items: center;
             gap: 5px; /* Space between checkbox and label */
+        }
+        #toggleInvalidButton { 
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease; 
+        }
+
+        #toggleInvalidButton.showing {
+            background-color: #28a745;  /* Green for "Show Invalid Records" */
+            color: black;
+        }
+
+        #toggleInvalidButton.hiding {
+            background-color: #dc3545;  /* Red for "Hide Invalid Records" */
+            color: black;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 6px;
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-size: 14px;            
+        }                    
+        table.dataTable thead .sorting:after,
+        table.dataTable thead .sorting_asc:after,
+        table.dataTable thead .sorting_desc:after {
+            display: none !important;
         }      
     </style>
 </head>
@@ -176,7 +208,7 @@
         <div class="server-control">
         <form id="serverControlForm">            
             <button type="button" onclick="applyFilter()" style="background-color: lightyellow; color: black;">Apply Filter</button>
-            <button id="toggleInvalidRecords" style="background-color: lightcoral;">Hide Invalid Records</button>            
+            <button id="toggleInvalidButton" onclick="toggleInvalidRecords()" class="hiding">Show Invalid Records</button>            
             <select id="dataset-selector"></select>
             <button onclick="switchDataset()">Switch Dataset</button>
             <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Curation Tool</button>
@@ -200,10 +232,17 @@
             <div id="successMessage" class="success-message"></div>
             <div id="errorMessage" class="error-message"></div>
         </div>
-        <div id="statisticsField" style="font-size: 16px; margin-top: 20px; font-weight: bold; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
-            <!-- Statistics will be displayed here -->
-            Statistics: <span id="statisticsText">No data available</span>
-        </div>                
+        <b>Statistics</b>
+        <div id="statisticsBox" class="stats-grid">
+            <div><b>Total: <span id="totalCount">0</span></b></div>
+            <div><b>Filtered: <span id="recordCount">0</span></b></div>
+            <div><b>Species: <span id="speciesCount">0</span></b></div>
+            <div><b>BINs: <span id="binCount">0</span></b></div>
+            <div><b>Curated: <span id="curatedCount">0</span></b></div>
+            <div><b>Uncurated: <span id="uncuratedCount">0</span></b></div>
+            <div><b>BIN Sharing: <span id="binSharingEvents">0</span></b></div>
+            <div><b>BIN Splitting: <span id="binSplittingEvents">0</span></b></div>            
+        </div>      
         <div style="position: relative; margin-top: 20px;">
             <span style="cursor: pointer;" onclick="toggleInfo('columnsInfo')">❓</span>
             <div id="columnsInfo" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
@@ -220,9 +259,18 @@
             <legend>Select Columns to Display:</legend>
             <div class="checkbox-group" id="checkboxGroup"></div>
         </fieldset>
+        <div id="entriesContainer" style="margin-bottom: 10px;">
+            <label for="entriesPerPage">Show entries:</label>
+            <select id="entriesPerPage">
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+        </div>
         <div id="recordsTable"></div>
-    </form>
-
+        <button id="submitAllButton" onclick="submitAllRows()">Submit All on Page</button>
+    </form>    
     <div id="errorMessage" class="error-message" style="display: none;"></div>
     <div id="successMessage" class="success-message" style="display: none;"></div>
     <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
@@ -287,10 +335,10 @@
 
         const container = checkboxGroup.querySelector('.checkbox-container');
 
-        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'itentified_by', 'taxonomy_notes', 'sex', 'life_stages', 'notes', 'voucher_type', 'collectors', 'collection_date', 'collection_type', 'collection_notes', 'geoid', 'country_ocean', 'province', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc', 'nuc_basecount', 'recordset_code_arr', 'gb_acs', 'additionalStatus', 'ranking'];
+        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'itentified_by', 'taxonomy_notes', 'sex', 'life_stages', 'notes', 'voucher_type', 'collectors', 'collection_date', 'collection_type', 'collection_notes', 'geoid', 'country_ocean', 'province', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc', 'nuc_basecount', 'recordset_code_arr', 'gb_acs', 'additionalStatus', 'url', 'ranking'];
 
         columns.forEach(column => {
-            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_ocean', 'status'].includes(column) ? 'checked' : '';
+            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_ocean', 'url', 'status'].includes(column) ? 'checked' : '';
 
             container.innerHTML += `
                 <div class="checkbox-item">
@@ -313,7 +361,9 @@
         const headers = document.querySelectorAll('#dataTable thead th');
 
         headers.forEach(th => {
-            if (th.textContent.trim().toLowerCase() === 'ranking' && !th.querySelector('#rankingInfoIcon')) {
+            const text = th.textContent.trim().toLowerCase();
+
+            if (text === 'ranking' && !th.querySelector('#rankingInfoIcon')) {
                 th.innerHTML = `
                     <span style="display: inline-flex; align-items: center;">
                         Ranking 
@@ -324,9 +374,20 @@
                     </span>
                 `;
             }
-        });
-    }
 
+            if (text === 'bags' && !th.querySelector('#bagsInfoIcon')) {
+                th.innerHTML = `
+                    <span style="display: inline-flex; align-items: center;">
+                        BAGS 
+                        <span 
+                            id="bagsInfoIcon" 
+                            style="color: red; cursor: pointer; margin-left: 5px;" 
+                            onclick="openBAGSInfo()">?</span> 
+                    </span>
+                `;
+            }
+        });
+    }    
     // ✅ Use MutationObserver to detect table changes
     const tableContainer = document.body; // Observe entire body since table is dynamically updated
     const observer = new MutationObserver((mutationsList, observer) => {
@@ -365,7 +426,10 @@
             td.style.display = '';
         });
     }
+
+//Do not delete
 let binUriColorMap = {}; // color map
+
 function getRandomColor() {
     const r = Math.floor(Math.random() * 256);
     const g = Math.floor(Math.random() * 256);
@@ -461,6 +525,24 @@ function applyStatusRowColoringAndExcludeRed() {
 
 let hideInvalidRecords = true; // Default to hiding invalid/excluded records
 
+function toggleInvalidRecords() {
+    hideInvalidRecords = !hideInvalidRecords;
+
+    const button = document.getElementById('toggleInvalidButton');
+
+    if (hideInvalidRecords) {
+        button.textContent = "Show Invalid Records";
+        button.classList.remove('hiding');
+        button.classList.add('showing');
+    } else {
+        button.textContent = "Hide Invalid Records";
+        button.classList.remove('showing');
+        button.classList.add('hiding');
+    }
+
+    applyFilter();
+}
+
 document.getElementById('toggleInvalidRecords').addEventListener('click', async () => {
     hideInvalidRecords = !hideInvalidRecords;
 
@@ -527,89 +609,201 @@ document.getElementById('toggleInvalidRecords').addEventListener('click', async 
     }
 });
 
-
-
-        function getColumnIndexByName(table, columnName) {
-            const headers = $(table).find('thead th');
-            for (let i = 0; i < headers.length; i++) {
-                if ($(headers[i]).text().trim().toLowerCase() === columnName.toLowerCase()) {
-                    return i;
-                }
-            }
-            return -1; // if collumn is not available
-        }    
-        function initTableSort() {
-            $.fn.dataTable.ext.order['dom-text'] = function(settings, col) {
-                return this.api().column(col, { order: 'index' }).nodes().map(function(td) {
-                    const inputVal = $('input', td).val();
-                    console.log('Input Value:', inputVal); // Debugging: Wert der Texteingabe ausgeben
-                    return (inputVal || '').toLowerCase(); // Kleinbuchstaben für konsistente Sortierung
-                });
-            };
-            $.fn.dataTable.ext.order['dom-select'] = function(settings, col) {
-                return this.api().column(col, { order: 'index' }).nodes().map(function(td) {
-                    const selectVal = $('select', td).val();
-                    console.log('Select Value:', selectVal); // Debugging
-                    return (selectVal || '').toLowerCase(); 
-                });
-            };            
-            const speciesIndex = getColumnIndexByName('#dataTable', 'Species');
-            const statusIndex = getColumnIndexByName('#dataTable', 'Status');            
-            const additionalStatusIndex = getColumnIndexByName('#dataTable', 'Additional Status');
-            const curator_notesIndex = getColumnIndexByName('#dataTable', 'Curator Notes');
-            
-            $('#dataTable').DataTable({
-                "columnDefs": [
-                    { "orderDataType": "dom-select", "targets": [statusIndex, additionalStatusIndex] },   // Dropdown-menue
-                    { "orderDataType": "dom-text", "targets": [speciesIndex, curator_notesIndex] },  
-                ],
-                "drawCallback": function(settings) {
-                    colorizeBinUriCells();                    
-                    applyStatusRowColoringAndExcludeRed();
-                }
-            });
-        }
-     async function applyFilter() {
-        const searchTerm = document.getElementById('searchTerm').value;
-        const searchType = document.getElementById('searchType').value;
-        const searchTerm2 = document.getElementById('searchTerm2').value;
-        const searchType2 = document.getElementById('searchType2').value;
-
-        const columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
-
-        try {
-            const response = await fetch('/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ searchTerm, searchType, searchTerm2, searchType2, columns })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch records');
-            }
-
-            const responseData = await response.json();
-            document.getElementById('recordsTable').innerHTML = responseData.table;
-
-            initTableSort();
-
-            document.getElementById('errorMessage').style.display = 'none';
-            addChangeListeners();
-            loadStatusSelections();
-
-            // Update the statistics field
-            updateDistinctValues('bin_uri', searchTerm, searchType, searchTerm2, searchType2);
-
-            colorizeBinUriCells();     
-            applyStatusRowColoringAndExcludeRed();
-        } catch (error) {
-            console.error('Error fetching records:', error);
-            document.getElementById('errorMessage').innerText = 'Failed to fetch records. Please try again.';
-            document.getElementById('errorMessage').style.display = 'block';
+function getColumnIndexByName(table, columnName) {
+    const headers = $(table).find('thead th');
+    for (let i = 0; i < headers.length; i++) {
+        if ($(headers[i]).text().trim().toLowerCase() === columnName.toLowerCase()) {
+            return i;
         }
     }
+    return -1; // if collumn is not available
+}    
+function initTableSort() {
+    $.fn.dataTable.ext.order['dom-text'] = function(settings, col) {
+        return this.api().column(col, { order: 'index' }).nodes().map(function(td) {
+            const inputVal = $('input', td).val();
+            console.log('Input Value:', inputVal); // Debugging: Wert der Texteingabe ausgeben
+            return (inputVal || '').toLowerCase(); // Kleinbuchstaben für konsistente Sortierung
+        });
+    };
+    $.fn.dataTable.ext.order['dom-select'] = function(settings, col) {
+        return this.api().column(col, { order: 'index' }).nodes().map(function(td) {
+            const selectVal = $('select', td).val();
+            console.log('Select Value:', selectVal); // Debugging
+            return (selectVal || '').toLowerCase(); 
+        });
+    };            
+    const speciesIndex = getColumnIndexByName('#dataTable', 'Species');
+    const statusIndex = getColumnIndexByName('#dataTable', 'Status');            
+    const additionalStatusIndex = getColumnIndexByName('#dataTable', 'Additional Status');
+    const curator_notesIndex = getColumnIndexByName('#dataTable', 'Curator Notes');
+    
+    $('#dataTable').DataTable({
+        "columnDefs": [
+            { "orderDataType": "dom-select", "targets": [statusIndex, additionalStatusIndex] },   // Dropdown-menue
+            { "orderDataType": "dom-text", "targets": [speciesIndex, curator_notesIndex] },  
+        ],
+        "drawCallback": function(settings) {
+            colorizeBinUriCells();                    
+            applyStatusRowColoringAndExcludeRed();
+        }
+    });
+}
+
+function updateStats(json) {
+    if (!json) return;
+
+    if (document.getElementById('totalCount')) {
+        document.getElementById('totalCount').innerText = json.recordsTotal ?? '0';
+    }
+    if (document.getElementById('recordCount')) {
+        document.getElementById('recordCount').innerText = json.recordsFiltered ?? '0';
+    }
+
+    if (!json.stats) return;
+
+    document.getElementById('speciesCount').innerText = json.stats.speciesCount;
+    document.getElementById('binCount').innerText = json.stats.binCount;
+    document.getElementById('curatedCount').innerText = json.stats.curatedCount;
+    document.getElementById('uncuratedCount').innerText = json.stats.uncuratedCount;
+    document.getElementById('binSharingEvents').innerText = json.stats.binSharingEvents;
+    document.getElementById('binSplittingEvents').innerText = json.stats.binSplittingEvents;
+    
+}
+
+function getRandomColor() {
+    const r = Math.floor(Math.random() * 256);
+    const g = Math.floor(Math.random() * 256);
+    const b = Math.floor(Math.random() * 56);
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+async function applyFilter() {
+    const searchTerm = document.getElementById('searchTerm').value;
+    const searchType = document.getElementById('searchType').value;
+    const searchTerm2 = document.getElementById('searchTerm2').value;
+    const searchType2 = document.getElementById('searchType2').value;
+
+    let columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
+
+    if (columns.length === 0) {
+        columns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking'];
+    }
+
+    const extraHeaders = ['BAGS', 'BIN Info', 'Status', 'Reason Name Correction', 'Correct Species Name', 'Curator Notes', 'Action'];
+    const thead = `<thead><tr>${columns.map(col => `<th>${col}</th>`).join('')}${extraHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
+    document.getElementById('recordsTable').innerHTML = `<table id="dataTable">${thead}<tbody></tbody></table>`;
+
+    if ($.fn.DataTable.isDataTable("#dataTable")) {
+        $('#dataTable').DataTable().destroy();
+    }
+
+    const entriesPerPage = parseInt(document.getElementById('entriesPerPage').value, 10) || 10;
+
+    const defaultOrder = [];
+
+    if (columns.includes('bin_uri')) {
+        defaultOrder.push([columns.indexOf('bin_uri'), 'asc']);
+    }
+    if (columns.includes('identification')) {
+        defaultOrder.push([columns.indexOf('identification'), 'asc']);
+    }
+
+    $('#dataTable').DataTable({
+        serverSide: true,
+        processing: true,
+        ordering: true,
+        order: defaultOrder,       
+        pageLength: entriesPerPage, // ✅ key line
+        lengthChange: false, // ✅ Prevent default dropdown from appearing
+        ajax: {
+            url: '/generate',
+            type: 'POST',
+            contentType: 'application/json',
+            data: function (d) {                                
+                return JSON.stringify({
+                    start: d.start,
+                    length: d.length,
+                    searchTerm,
+                    searchType,
+                    searchTerm2,
+                    searchType2,
+                    columns,
+                    includeInvalid: !hideInvalidRecords,
+                    draw: d.draw,
+                    order: d.order
+                });
+            }
+        },
+        paging: true,
+        ordering: true,
+        searching: false,
+        info: true,
+        drawCallback: function(settings) {
+            updateStats(settings.json);  // Update your statistics box after data loads
+        },
+        createdRow: function(row, data, dataIndex) {
+            const binUri = data[columns.indexOf('bin_uri')];
+            const statusValue = data[columns.length + 2];
+            const reasonValue = data[columns.length + 3];
+            const speciesValue = data[columns.length + 4];
+            const notesValue = data[columns.length + 5];
+            const processId = data[columns.length + 6];
+            const rankingIndex = columns.indexOf('ranking');
+            const rankingValue = rankingIndex !== -1 ? parseInt(data[rankingIndex], 10) : NaN;
+            const urlIndex = columns.indexOf('url');
+            if (urlIndex !== -1) {
+                const rawUrl = data[urlIndex];
+                if (rawUrl) {
+                    $('td', row).eq(urlIndex).html(`<a href="${rawUrl}" target="_blank">Link</a>`);
+                }
+            }
+
+            $('td', row).eq(columns.length + 2).html(`
+                <select>
+                    <option value="" ${statusValue === '' ? 'selected' : ''}></option>
+                    <option value="valid record" ${statusValue === 'valid record' ? 'selected' : ''}>valid record</option>
+                    <option value="invalid record" ${statusValue === 'invalid record' ? 'selected' : ''}>invalid record</option>
+                    <option value="exclude species" ${statusValue === 'exclude species' ? 'selected' : ''}>exclude species</option>
+                    <option value="reinclude species" ${statusValue === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
+                </select>`);
+
+            $('td', row).eq(columns.length + 3).html(`
+                <select>
+                    <option value="" ${reasonValue === '' ? 'selected' : ''}></option>
+                    <option value="misidentified" ${reasonValue === 'misidentified' ? 'selected' : ''}>misidentified</option>
+                    <option value="synonym" ${reasonValue === 'synonym' ? 'selected' : ''}>synonym</option>
+                    <option value="typo" ${reasonValue === 'typo' ? 'selected' : ''}>typo</option>
+                </select>`);
+
+            $('td', row).eq(columns.length + 4).html(`<input type="text" value="${speciesValue}">`);
+            $('td', row).eq(columns.length + 5).html(`<input type="text" value="${notesValue}">`);
+            $('td', row).eq(columns.length + 6).html(`<button class="row-submit-button" onclick="submitRow(event, null, '${processId}')">Submit</button>`);
+
+            if (columns.indexOf('bin_uri') !== -1 && binUri) {
+                if (!binUriColorMap[binUri]) {
+                    binUriColorMap[binUri] = getRandomColor();
+                }
+                $('td', row).eq(columns.indexOf('bin_uri')).css({
+                    backgroundColor: binUriColorMap[binUri],
+                    color: '#ffffff'
+                });
+            }
+
+            if (!isNaN(rankingValue) && rankingValue >= 1 && rankingValue <= 3) {
+                $(row).css({ backgroundColor: '#d6d6d6', color: '' });
+            }
+
+            // Status overrides — always applied after ranking
+            if (statusValue.toLowerCase() === 'valid record' || statusValue.toLowerCase() === 'reinclude species') {
+                $(row).css({ backgroundColor: '#d4edda', color: '#155724' });
+            } else if (statusValue.toLowerCase() === 'invalid record' || statusValue.toLowerCase() === 'exclude species') {
+                $(row).css({ backgroundColor: '#f8d7da', color: '#721c24' });
+            }
+        }
+    });
+}
+
 async function updateDistinctValues(column, searchTerm, searchType, searchTerm2, searchType2) {
     try {
         const response = await fetch('/distinct-values', {
@@ -672,63 +866,60 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
                 }
             });
         }
-        // Function to submit a single row
+        // Function to submit single row
         async function submitRow(event, index, processId) {
-            if (event) event.preventDefault(); // Handle individual submit clicks
+            if (event) event.preventDefault();
 
-            const status = document.getElementById(`status-${index}`).value;
-            const additionalStatus = document.getElementById(`additionalStatus-${index}`).value;            
-            const species = document.getElementById(`species-${index}`).value;
-            const curator_notes = document.getElementById(`curator_notes-${index}`).value;
+            let row;
+            if (event) {
+                row = event.target.closest('tr');
+            } else if (typeof index === 'number') {
+                const table = $('#dataTable').DataTable();
+                row = table.row(index).node();
+            } else {
+                console.error("submitRow: No valid event or index provided.");
+                return;
+            }
 
-            // Check if the user selected "exclude species" or "reinclude species" and display a confirmation dialog
+            const status = row.querySelector('td:nth-child(9) select').value;
+            const additionalStatus = row.querySelector('td:nth-child(10) select').value;
+            const species = row.querySelector('td:nth-child(11) input').value;
+            const curator_notes = row.querySelector('td:nth-child(12) input').value;
+
             if (status === 'exclude species') {
-                const userConfirmed = confirm(
-                    "You are about to exclude an entire species. Are you sure you want to proceed?"
-                );
-
-                if (!userConfirmed) {
-                    // User canceled the action, so exit the function
-                    return;
-                }
+                const userConfirmed = confirm("You are about to exclude an entire species. Are you sure?");
+                if (!userConfirmed) return;
             } else if (status === 'reinclude species') {
-                const userConfirmed = confirm(
-                    "You are about to reinclude an entire species. Are you sure you want to proceed?"
-                );
-
-                if (!userConfirmed) {
-                    // User canceled the action, so exit the function
-                    return;
-                }
+                const userConfirmed = confirm("You are about to reinclude an entire species. Are you sure?");
+                if (!userConfirmed) return;
             }
 
             try {
                 const response = await fetch('/submit', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        processId,
-                        status,
-                        additionalStatus,
-                        species,
-                        curator_notes,
-                    }),
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ processId, status, additionalStatus, species, curator_notes })
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to submit row');
-                }
+                if (!response.ok) throw new Error('Failed to submit row');
 
                 showMessage('success', 'Submit successful');
-                
-                // Remove the change from the changes array
-                changes = changes.filter(change => !(change.index === index && change.processId === processId));
+
             } catch (error) {
-                showMessage('error', 'Submit failed');                
+                showMessage('error', 'Submit failed');
+                console.error(error);
             }
         }
+
+        function submitAllRows() {
+            const table = $('#dataTable').DataTable();
+            table.rows({ page: 'current' }).every(function(index) {
+                const row = this.node();
+                const processId = row.querySelector('td:nth-child(13) button').getAttribute('onclick').split("'")[1];
+                submitRow(undefined, index, processId);
+            });
+        }
+
         function showMessage(type, message) {
             const messageElement = document.getElementById(type === 'success' ? 'successMessage' : 'errorMessage');
 
@@ -738,13 +929,7 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
             setTimeout(() => {
                 messageElement.style.display = "none";
             }, 3000);
-        }
-        // Function to submit all rows
-        function submitAllRows() {
-            document.querySelectorAll(".row-submit-button").forEach(button => {
-                button.click(); // Trigger each row's submit button
-            });
-        }    
+        }        
         function openRankingInfo() {
             const popup = window.open("", "RankingInfo", "width=600,height=400,resizable=yes");
             if (popup) {

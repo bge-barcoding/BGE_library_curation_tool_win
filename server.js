@@ -233,11 +233,7 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                         ].map(value => typeof value === 'object' ? JSON.stringify(value) : value || null);
 
                         insertStmt.run(values);
-                    });
-                    // insertStmt.finalize(() => {
-                    //     populateAvailableColumns();
-                    //     resolve();
-                    // });
+                    });                    
                 });
             });
         });
@@ -295,11 +291,6 @@ app.get('/columns', (req, res) => {
     res.json({ availableColumns });
 });
 
-// Start server
-// app.listen(PORT, () => {
-//     console.log(`Server is running on port ${PORT}`);
-// });
-
 // Function to calculate BAGS grading for a species
 function calculateBAGSGrade(binCount, recordCount, binSharing, bins) {
     if (binSharing) return 'E'; // BIN-sharing event detected
@@ -317,180 +308,172 @@ function calculateBAGSGrade(binCount, recordCount, binSharing, bins) {
     return 'E'; // Default to grade E if none of the above conditions match
 }
 app.post('/generate', (req, res) => {
-    const { searchTerm, searchType, searchTerm2, searchType2, columns, includeInvalid } = req.body;
+    let {
+        searchTerm,
+        searchType,
+        searchTerm2,
+        searchType2,
+        columns,
+        includeInvalid,
+        start = 0,
+        length = 10,
+        draw
+    } = req.body;
 
-    if (!columns || !Array.isArray(columns)) {
-        return res.status(400).json({ success: false, message: 'Invalid columns data' });
-    }
+    const allowedColumns = [ // ✅ update as needed
+      'bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking', 'species', 'status', 'class', 'order',
+      'family', 'genus', 'subspecies', 'species_reference'
+    ];
 
-    // SQL query base
-    let sqlQuery = 'SELECT * FROM records';
-    const params = [];
     const conditions = [];
+    const params = [];
 
-    // Add first query condition
     if (searchTerm && searchType && columns.includes(searchType)) {
         conditions.push(`${searchType} LIKE ?`);
         params.push(`%${searchTerm}%`);
     }
 
-    // Add second query condition
     if (searchTerm2 && searchType2 && columns.includes(searchType2)) {
         conditions.push(`${searchType2} LIKE ?`);
         params.push(`%${searchTerm2}%`);
     }
 
-    // **Exclude invalid & excluded species unless "Show Invalid Records" is clicked**
     if (!includeInvalid) {
         conditions.push(`(status IS NULL OR status NOT IN ('invalid record', 'exclude species'))`);
     }
 
-    if (conditions.length > 0) {
-        sqlQuery += ` WHERE ${conditions.join(' AND ')}`;
+    const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
+
+    let orderClause = '';
+    if (Array.isArray(req.body.order)) {
+        const sortParts = req.body.order.map(o => {
+            const col = columns[o.column];
+            const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
+            if (allowedColumns.includes(col)) {
+                return `${col} ${dir}`;
+            }
+            return null;
+        }).filter(Boolean);
+        if (sortParts.length > 0) {
+            orderClause = ` ORDER BY ${sortParts.join(', ')}`;
+        }
     }
 
-    // Execute the SQL query
-    db.all(sqlQuery, params, (err, rows) => {
-        if (err) {
-            console.error('Error fetching records from database:', err);
-            return res.status(500).json({ success: false, message: 'Error fetching records from database' });
-        }
 
-        // Analyze BIN-sharing and BIN-splitting for valid records only
-        const binSharingMap = {};
-        const speciesBinMap = {};
+    db.get(`SELECT COUNT(*) as count FROM records`, [], (err, totalResult) => {
+        if (err) return res.status(500).json({ success: false, message: 'Error counting total records' });
 
-        rows.forEach(row => {
-            if (row.status && row.status.toLowerCase() === 'invalid record') {
-                return; // Skip invalid records entirely
-            }
+        const recordsTotal = totalResult.count;
 
-            // Include "reinclude species" for analysis but skip "exclude species"
-            if (row.status && row.status.toLowerCase() === 'exclude species') {
-                return; // Skip excluded species for BIN analysis
-            }
+        db.all(`SELECT * FROM records${whereClause}`, params, (err, allRows) => {
+            if (err) return res.status(500).json({ success: false, message: 'Error fetching filtered records' });
 
-            // BIN-sharing: Group species by bin_uri
-            if (row.bin_uri) {
-                if (!binSharingMap[row.bin_uri]) {
-                    binSharingMap[row.bin_uri] = new Set();
+            const recordsFiltered = allRows.length;
+
+            const speciesSet = new Set(allRows.map(r => r.species).filter(Boolean));
+            const binSet = new Set(allRows.map(r => r.bin_uri).filter(Boolean));
+            const curatedCount = allRows.filter(r => r.status).length;
+            const uncuratedCount = allRows.length - curatedCount;
+
+            const binSharingMap = {};
+            const speciesBinMap = {};
+
+            allRows.forEach(row => {
+                if (row.bin_uri) {
+                    if (!binSharingMap[row.bin_uri]) binSharingMap[row.bin_uri] = new Set();
+                    binSharingMap[row.bin_uri].add(row.species);
                 }
-                binSharingMap[row.bin_uri].add(row.species);
-            }
-
-            // BIN-splitting: Group bin_uri by species
-            if (row.species) {
-                if (!speciesBinMap[row.species]) {
-                    speciesBinMap[row.species] = new Set();
+                if (row.species) {
+                    if (!speciesBinMap[row.species]) speciesBinMap[row.species] = new Set();
+                    speciesBinMap[row.species].add(row.bin_uri);
                 }
-                speciesBinMap[row.species].add(row.bin_uri);
-            }
+            });
+
+            const binSharingEvents = Object.values(binSharingMap).filter(set => set.size > 1).length;
+            const binSplittingEvents = Object.values(speciesBinMap).filter(set => set.size > 1).length;
+
+            const gradeCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+            speciesSet.forEach(species => {
+                const bins = speciesBinMap[species] ? Array.from(speciesBinMap[species]) : [];
+                const binSharing = bins.some(bin => binSharingMap[bin] && binSharingMap[bin].size > 1);
+                const grade = calculateBAGSGrade(
+                    bins.length,
+                    allRows.filter(r => r.species === species).length,
+                    binSharing,
+                    bins
+                );
+                gradeCounts[grade]++;
+            });
+
+            const stats = {
+                recordCount: allRows.length,
+                speciesCount: speciesSet.size,
+                binCount: binSet.size,
+                curatedCount,
+                uncuratedCount,
+                binSharingEvents,
+                binSplittingEvents,
+                gradeCounts
+            };
+
+            // ✅ Fixed pagination query — add LIMIT and OFFSET
+            const paginatedQuery = `SELECT * FROM records${whereClause}${orderClause} LIMIT ? OFFSET ?`;
+            const paginatedParams = [...params, parseInt(length), parseInt(start)];
+
+            db.all(paginatedQuery, paginatedParams, (err, paginatedRows) => {
+                if (err) return res.status(500).json({ success: false, message: 'Error fetching paginated records' });
+
+                paginatedRows.forEach(item => {
+                    const validBins = speciesBinMap[item.species]
+                        ? Array.from(speciesBinMap[item.species]).filter(bin => binSharingMap[bin])
+                        : [];
+
+                    const sharedSpecies = item.bin_uri && binSharingMap[item.bin_uri]
+                        ? Array.from(binSharingMap[item.bin_uri]).filter(species => species && species !== item.species)
+                        : [];
+
+                    let binInfo = '';
+                    if (sharedSpecies.length > 0) {
+                        binInfo += `<b>BIN-sharing:</b> ${sharedSpecies.join(', ')} `;
+                    }
+                    if (validBins.length > 1) {
+                        binInfo += `<b>BIN-splitting:</b> ${validBins.join(', ')}`;
+                    } else if (validBins.length === 1) {
+                        binInfo += `<b>Single BIN:</b> ${validBins[0]}`;
+                    }
+
+                    const binSharing = sharedSpecies.length > 0;
+                    const binCount = validBins.length;
+                    const recordCount = allRows.filter(r =>
+                        r.species === item.species &&
+                        (!r.status || (r.status.toLowerCase() !== 'invalid record' && r.status.toLowerCase() !== 'exclude species'))
+                    ).length;
+
+                    item.bags = calculateBAGSGrade(binCount, recordCount, binSharing, validBins.map(bin => ({ id: bin, exclusive: !binSharing })));
+                    item.bin_info = binInfo.trim();
+                });
+
+                const data = paginatedRows.map(row => {
+                    return columns.map(col => row[col.toLowerCase()] || '')
+                        .concat([
+                            row.bags || '', row.bin_info || '', row.status || '',
+                            row.additionalStatus || '', row.species || '',
+                            row.curator_notes || '', row.processid || ''
+                        ]);
+                });
+
+                res.json({
+                    draw,
+                    recordsTotal,
+                    recordsFiltered,
+                    data,
+                    stats
+                });
+            });
         });
-
-        // Generate HTML table headers
-        const tableHeaders = `${columns.map(column => `<th>${column}</th>`).join('')}
-            <th>
-                <span style="display: inline-flex; align-items: center;"> 
-                    BAGS 
-                    <span 
-                        id="bagsInfoIcon" 
-                        style="color: red; cursor: pointer; margin-left: 5px;" 
-                        onclick="openBAGSInfo()">?</span> 
-                    </span> 
-            </th>
-            <th>BIN Info</th>`;
-
-        // Generate HTML table rows
-        const tableRows = rows.map((item, index) => {
-            // Construct BIN Info only for valid records
-            const validBins = speciesBinMap[item.species]
-                ? Array.from(speciesBinMap[item.species]).filter(bin => binSharingMap[bin])
-                : [];
-            const sharedSpecies = item.bin_uri && binSharingMap[item.bin_uri]
-                ? Array.from(binSharingMap[item.bin_uri]).filter(species => species && species !== item.species)
-                : [];
-
-            let binInfo = '';
-            if (sharedSpecies.length > 0) {
-                binInfo += `<b>BIN-sharing:</b> ${sharedSpecies.join(', ')} `;
-            }
-            if (validBins.length > 1) {
-                binInfo += `<b>BIN-splitting:</b> ${validBins.join(', ')}`;
-            } else if (validBins.length === 1) {
-                binInfo += `<b>Single BIN:</b> ${validBins[0]}`;
-            }
-
-            // Calculate BAGS grade only for valid records
-            const binSharing = sharedSpecies.length > 0;
-            const binCount = validBins.length;
-            const recordCount = rows.filter(row => 
-                row.species === item.species && 
-                (!row.status || (row.status.toLowerCase() !== 'invalid record' && row.status.toLowerCase() !== 'exclude species'))
-            ).length;
-            const BAGS = calculateBAGSGrade(binCount, recordCount, binSharing, validBins.map(bin => ({ id: bin, exclusive: !binSharing })));
-
-            // Generate row HTML (include all records)
-            const row = columns.map(column => {
-                // Apply italics to "identification" column
-                const cellValue = item[column.toLowerCase()] || '';
-                const formattedValue = column.toLowerCase() === 'identification' ? `<i>${cellValue}</i>` : cellValue;
-
-                return `<td id="${column.toLowerCase()}-${index}">${formattedValue}</td>`;
-            }).join('');
-            return `
-                <tr class="${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? 'invalid-record' : ''}">
-                    ${row}
-                    <td>${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? '' : BAGS}</td>
-                    <td>${item.status && (item.status.toLowerCase() === 'invalid record' || item.status.toLowerCase() === 'exclude species') ? '' : binInfo.trim()}</td>
-                    <td><a href="${item.url}" target="_blank">Link</a></td>                                       
-                    <td>
-                        <select id="status-${index}">
-                            <option value="" ${!item.status ? 'selected' : ''}></option>
-                            <option value="valid record" ${item.status === 'valid record' ? 'selected' : ''}>valid record</option>
-                            <option value="invalid record" ${item.status === 'invalid record' ? 'selected' : ''}>invalid record</option>
-                            <option value="exclude species" ${item.status === 'exclude species' ? 'selected' : ''}>exclude species</option>
-                            <option value="reinclude species" ${item.status === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select id="additionalStatus-${index}">
-                            <option value="" ${!item.additionalStatus ? 'selected' : ''}></option>
-                            <option value="misidentified" ${item.additionalStatus === 'misidentified' ? 'selected' : ''}>misidentified</option>
-                            <option value="synonym" ${item.additionalStatus === 'synonym' ? 'selected' : ''}>synonym</option>
-                            <option value="typo" ${item.additionalStatus === 'typo' ? 'selected' : ''}>typo</option>                            
-                        </select>
-                    </td>
-                    <td><input type="text" id="species-${index}" value="${item.species || ''}"></td>
-                    <td><input type="text" id="curator_notes-${index}" value="${item.curator_notes || ''}"></td>
-                    <td><button class="row-submit-button" onclick="submitRow(event, ${index}, '${item.processid || ''}')">Submit</button></td>
-                </tr>`;
-        }).join('');
-
-        // Final table
-        const table = `
-            <table id="dataTable">
-                <thead>
-                    <tr>
-                        ${tableHeaders}
-                        <th>url</th>                        
-                        <th>Status</th>
-                        <th>Reason name correction</th>
-                        <th>Correct species name</th>
-                        <th>Curator_notes</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRows}
-                </tbody>
-            </table>
-            <button id="submitAllButton" onclick="submitAllRows()">Submit All on Page</button>
-            `;        
-        
-        res.json({success: true, table });
-
     });
 });
+
 // app.post('/submit') endpoint
 app.post('/submit', (req, res) => {
     const { processId, status, additionalStatus, species, curator_notes } = req.body;
@@ -758,6 +741,7 @@ app.post('/search', (req, res) => {
 });
 app.post('/distinct-values', (req, res) => {
     const { column, searchTerm, searchType, searchTerm2, searchType2 } = req.body;
+    const { start = 0, length = 100 } = req.body;
 
     let sqlQuery = `SELECT * FROM records`;
     const params = [];
@@ -782,6 +766,11 @@ app.post('/distinct-values', (req, res) => {
     if (conditions.length > 0) {
         sqlQuery += ` WHERE ${conditions.join(' AND ')}`;
     }
+
+    // Add pagination AFTER the WHERE clause
+    sqlQuery += ` LIMIT ? OFFSET ?`;
+    params.push(length);
+    params.push(start);
 
     // Execute query
     db.all(sqlQuery, params, (err, rows) => {
@@ -820,18 +809,7 @@ app.post('/distinct-values', (req, res) => {
 
         // Count BIN-sharing and BIN-splitting events
         const binSharingEvents = Object.values(binSharingMap).filter(set => set.size > 1).length;
-        const binSplittingEvents = Object.values(speciesBinMap).filter(set => set.size > 1).length;
-
-        // BAGS Grade statistics
-        const gradeCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
-        speciesSet.forEach(species => {
-            const binCount = speciesBinMap[species] ? speciesBinMap[species].size : 0;
-            const recordCount = rows.filter(row => row.species === species).length;
-            const binSharing = Object.values(binSharingMap).some(set => set.has(species) && set.size > 1);
-
-            const grade = calculateBAGSGrade(binCount, recordCount, binSharing, Array.from(speciesBinMap[species] || []));
-            gradeCounts[grade]++;
-        });
+        const binSplittingEvents = Object.values(speciesBinMap).filter(set => set.size > 1).length;        
 
         // Respond with all statistics
         res.json({
@@ -843,7 +821,7 @@ app.post('/distinct-values', (req, res) => {
             uncuratedCount,
             binSharingEvents,
             binSplittingEvents,
-            gradeCounts
+            // gradeCounts
         });
     });
 });
