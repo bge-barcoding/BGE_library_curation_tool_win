@@ -934,7 +934,8 @@ app.post('/download-csv', express.json(), (req, res) => {
             { db: 'status', csv: 'status' },
             { db: 'additionalStatus', csv: 'reason name correction' },
             { db: 'species', csv: 'correct species name' },
-            { db: 'curator_notes', csv: 'curator notes' }
+            { db: 'curator_notes', csv: 'curator notes' },
+            { db: 'selected records', csv: 'selected records' }  // special field, computed manually
         ];
 
         // Step 4: Get user-selected columns or fallback
@@ -960,7 +961,7 @@ app.post('/download-csv', express.json(), (req, res) => {
         const finalHeaders = [];
 
         for (const { db, csv } of requiredFields) {
-            if (allKeys.includes(db)) {
+            if (db === 'selected records' || allKeys.includes(db)) {
                 finalHeaders.push(csv);
                 inserted.add(csv);
             }
@@ -977,10 +978,30 @@ app.post('/download-csv', express.json(), (req, res) => {
 
         const csvRows = [
             finalHeaders.join(','),
-            ...rows.map(row => finalHeaders.map(header => {
-                const originalKey = Object.entries(renamed).find(([, renamedVal]) => renamedVal === header)?.[0] || header;
-                return JSON.stringify(row[originalKey] ?? '');
-            }).join(','))
+            ...rows.map(row => {
+                return finalHeaders.map(header => {
+                    if (header === 'selected records') {
+                        const status = (row['status'] || '').toLowerCase();
+                        const ranking = parseInt(row['ranking'], 10);
+                        const processid = row['processid'];
+
+                        const isSelected =
+                            (
+                                [1, 2, 3].includes(ranking) &&
+                                !['invalid record', 'exclude species'].includes(status)
+                            ) ||
+                            (
+                                [4, 5, 6].includes(ranking) &&
+                                ['valid record'].includes(status)
+                            );
+
+                        return isSelected ? JSON.stringify(processid) : '""';
+                    }
+
+                    const originalKey = Object.entries(renamed).find(([, val]) => val === header)?.[0] || header;
+                    return JSON.stringify(row[originalKey] ?? '');
+                }).join(',');
+            })
         ];
 
         res.setHeader('Content-Disposition', 'attachment; filename=taxonomic_records.csv');
