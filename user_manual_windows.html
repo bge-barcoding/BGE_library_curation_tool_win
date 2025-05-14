@@ -77,7 +77,7 @@
 </head>
 <body>
   <h1>Library Curation Tool – User Manual (Windows)</h1>
-  <p><strong>Date:</strong> 14 April 2024</p>
+  <p><strong>Date:</strong> 14 May 2025</p>
   <p><strong>Project:</strong> Biodiversity Genomics Europe – WP10: T10.1 Reference Library Curation</p>
   <p><img src="public/ressources/logo_bge.png" alt="BGE logo" width='500'></p>
 
@@ -114,15 +114,17 @@
   </ol>
   <pre>
 ProjectFolder/
-├── <b>data/              # input data files (db or xml format)</b>
-├── <b>logs/              # log file for changed data (changes.log)</b>
-├── node/              # portable Node.js runtime
-├── node_modules/      # dependencies installed via npm
-├── public/            # frontend interface for the tool
-├── package.json       # project metadata and dependencies
-├── README.md          # project documentation
-├── server.js          # backend logic
-└── <b>start_tool.bat     # starts the tool</b>
+├── <b>data/                        # input data files (db or xml format)</b>
+├── <b>logs/                        # log file for changed data (changes.log)</b>
+├── node/                        # portable Node.js runtime
+├── node_modules/                # dependencies installed via npm
+├── public/                      # frontend interface for the tool
+├── package.json                 # project metadata and dependencies
+├── README.md                    # project documentation
+├── server.js                    # backend logic
+├── <b>start_tool.bat               # starts the tool</b>
+└── <b>user_manual_windows.html     # user manual windows</b>
+
   </pre>
   <div class="tip">
     <strong>Tip:</strong> Load your data into <code>data/</code> before starting. If only an <code>.xml</code> file is present, a <code>.db</code> file will be generated automatically.
@@ -139,7 +141,7 @@ ProjectFolder/
   </ol>
   
   <ol>
-  <strong> To load and switch between datasets:</strong> Choose the corresponding dataset from the <strong>dropdown</strong>, click <strong>Switch dataset</strong>, confirm the popup with <strong>OK</strong>, then click <strong>Apply Filter</strong> to view the new dataset. If a db file already exists, this file will be used. Otherwise a db file will be generated from the xml file. <strong>This may take a while.</strong> In this case make sure that you wait until the file is <strong>complete</strong> (the size of the corresponding db file in the subfolder data should not change anymore) and press the <strong>Apply Filter</strong> button to refresh the HTML table. Alternatively, you can press the <strong>Apply Filter</strong> button from time to time, until the amount of total records in the statistics panel is stable.
+  <strong> To load and switch between datasets:</strong> Choose the corresponding dataset from the <strong>dropdown</strong>, click <strong>Load dataset</strong>, confirm the popup with <strong>OK</strong>, then click <strong>Apply Filter</strong> to view the new dataset. If a db file already exists, this file will be used. <b> This should be the standard in the BGE project. </b> <br> Otherwise a db file will be generated from the xml file. <strong>This may take a while.</strong> In this case make sure that you wait until the file is <strong>complete</strong> (the size of the corresponding db file in the subfolder data should not change anymore) and press the <strong>Apply Filter</strong> button to refresh the HTML table. Alternatively, you can press the <strong>Apply Filter</strong> button from time to time, until the amount of total records in the statistics panel is stable.
   </ol> 
 
   <h2 id="usage">4. Using the Tool</h2>
@@ -159,15 +161,15 @@ ProjectFolder/
     <tr><td><img src="public/ressources/user_manual/hide.png" alt="Show/Hide Invalid Records"></td>
       <td>Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species)</td></tr>  
     <tr><td><img src="public/ressources/user_manual/available_data.png" alt="Available data"><img src="public/ressources/user_manual/switch.png" alt="Switch Dataset"></td>
-      <td>To switch datasets: Select one from the dropdown, click <b>Switch Dataset</b>, confirm the popup with <b>OK</b>, then click <b>Apply Filter</b> to view the new dataset (in this case Alucitidae)</td></tr>
+      <td>To load or switch between datasets: Select one from the dropdown, click <b>Load Dataset</b>, confirm the popup with <b>OK</b>, then click <b>Apply Filter</b> to view the new dataset (in this case Alucitidae)</td></tr>
     <tr><td><img src="public/ressources/user_manual/stop.png" alt="Stop Curation Tool"></td>
       <td>Stop the server running in the backend. Use this only if you want to end the Library Curation Tool.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/export_csv.png" alt="Export CSV"></td>
+      <td>Export the database as a CSV file. Selected columns (in Select Columns to Display) will be included; if none are selected, all columns will be exported.</td></tr>  
     <tr><td><img src="public/ressources/user_manual/question_mark.png" alt="red question mark"></td>
       <td>Click on the <b>red question mark</b> in order to open a context menu with supporting information.</td></tr>
     <tr><td><img src="public/ressources/user_manual/recordsonpage.png" alt="records on page dropdown"></td>
-      <td>Adjust records shown on page.</td></tr>
-    <tr><td><img src="public/ressources/user_manual/generalsearch.png" alt="general search field"></td>
-      <td>Additional search field. Search the whole table over all columns and lines.</td></tr>
+      <td>Adjust records shown on page.</td></tr>    
     <tr><th>HTML table</th></tr>
     <tr><td><img src="public/ressources/user_manual/ranking.png" alt="Ranking"></td><td><b>Ranking:</b>
      Ranking system to pick representatives for each haplotype / species <br> 

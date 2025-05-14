@@ -200,8 +200,9 @@
             <ul>
                 <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results. / Refreshs the HTML-table</li>
                 <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species).</li>
-                <li><b>Switch Dataset:</b> To switch datasets: Select one from the dropdown, click 'Switch dataset', confirm the popup with 'OK', then click 'Apply Filter' to view the new dataset.</li>                
+                <li><b>Load Dataset:</b> To load datasets: Select one from the dropdown, click 'Load dataset', confirm the popup with 'OK', then click 'Apply Filter' to view the new dataset.</li>                
                 <li><b>Stop Curation Tool:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>
+                <li><b>Export CSV:</b> Export the database as a CSV file. Selected columns (in Select Columns to Display) will be included; if none are selected, all columns will be exported.</li>
             </ul>            
         </div>
     </div>
@@ -210,10 +211,36 @@
             <button type="button" onclick="applyFilter()" style="background-color: lightyellow; color: black;">Apply Filter</button>
             <button id="toggleInvalidButton" onclick="toggleInvalidRecords()" class="hiding">Show Invalid Records</button>            
             <select id="dataset-selector"></select>
-            <button onclick="switchDataset()">Switch Dataset</button>
+            <button onclick="switchDataset()">Load Dataset</button>
             <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Curation Tool</button>
+            <button onclick="downloadCSV()" style="background-color: lightgreen;">Export CSV</button>
             <span style="cursor: pointer;" onclick="toggleInfo('buttonsInfo')">❓</span>
     </form>
+    <script>
+    function downloadCSV() {
+        const selectedColumns = Array.from(document.querySelectorAll('input[name="columns"]:checked'))
+            .map(cb => cb.value);
+
+        fetch('/download-csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ columns: selectedColumns })
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'taxonomic_records.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        })
+        .catch(err => {
+            alert('Download failed.');
+            console.error(err);
+        });
+    }
+    </script> 
     <script>
         function toggleInfo(infoId) {
             const infoField = document.getElementById(infoId);
@@ -256,7 +283,7 @@
             </div>
         </div>
         <fieldset>
-            <legend>Select Columns to Display:</legend>
+            <legend><b>Select Columns to Display:</b></legend>
             <div class="checkbox-group" id="checkboxGroup"></div>
         </fieldset>
         <div id="entriesContainer" style="margin-bottom: 10px;">

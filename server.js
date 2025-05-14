@@ -889,3 +889,104 @@ process.on('SIGINT', () => {
         });
     });
 });
+app.post('/download-csv', express.json(), (req, res) => {
+    if (!currentDbFile || !fs.existsSync(currentDbFile)) {
+        return res.status(500).send('No active database selected or file does not exist.');
+    }
+
+    const dbExport = new sqlite3.Database(currentDbFile, sqlite3.OPEN_READONLY, (err) => {
+        if (err) {
+            console.error('Error opening database for export:', err);
+            return res.status(500).send('Failed to open current database.');
+        }
+    });
+
+    const query = 'SELECT * FROM records';
+
+    dbExport.all(query, (err, rows) => {
+        if (err) {
+            dbExport.close();
+            console.error('Error querying records:', err);
+            return res.status(500).send('Failed to query database.');
+        }
+
+        if (!rows.length) {
+            dbExport.close();
+            return res.status(200).send('No records found.');
+        }
+
+        // Step 1: Collect all keys across all rows
+        const allKeys = Array.from(new Set(rows.flatMap(row => Object.keys(row))));
+
+        // Step 2: Config
+        const excluded = new Set(['keep', 'BAGS']);
+        const renamed = {
+            'additionalStatus': 'reason name correction',
+            'species': 'correct species name',
+            'curator_notes': 'curator notes'
+        };
+
+        // Step 3: Define default CSV columns in required order
+        const requiredFields = [
+            { db: 'bin_uri', csv: 'bin_uri' },
+            { db: 'processid', csv: 'processid' },
+            { db: 'identification', csv: 'identification' },
+            { db: 'status', csv: 'status' },
+            { db: 'additionalStatus', csv: 'reason name correction' },
+            { db: 'species', csv: 'correct species name' },
+            { db: 'curator_notes', csv: 'curator notes' }
+        ];
+
+        // Step 4: Get user-selected columns or fallback
+        let selected = req.body.columns;
+        if (!Array.isArray(selected)) selected = [];
+
+        if (selected.length === 0) {
+            // Use all other available columns except required and excluded ones
+            selected = allKeys.filter(k =>
+                !excluded.has(k) &&
+                !requiredFields.some(rf => rf.db === k)
+            );
+        }
+
+        // Step 5: Clean selected list (strip out excluded + required fields)
+        selected = selected.filter(h =>
+            !excluded.has(h) &&
+            !requiredFields.some(rf => rf.db === h || rf.csv === h)
+        );
+
+        // Step 6: Add required fields first in order
+        const inserted = new Set();
+        const finalHeaders = [];
+
+        for (const { db, csv } of requiredFields) {
+            if (allKeys.includes(db)) {
+                finalHeaders.push(csv);
+                inserted.add(csv);
+            }
+        }
+
+        // Step 7: Add the rest (user-selected or fallback), with renaming
+        for (const h of selected) {
+            const renamedH = renamed[h] || h;
+            if (!inserted.has(renamedH)) {
+                finalHeaders.push(renamedH);
+                inserted.add(renamedH);
+            }
+        }
+
+        const csvRows = [
+            finalHeaders.join(','),
+            ...rows.map(row => finalHeaders.map(header => {
+                const originalKey = Object.entries(renamed).find(([, renamedVal]) => renamedVal === header)?.[0] || header;
+                return JSON.stringify(row[originalKey] ?? '');
+            }).join(','))
+        ];
+
+        res.setHeader('Content-Disposition', 'attachment; filename=taxonomic_records.csv');
+        res.setHeader('Content-Type', 'text/csv');
+        res.status(200).send(csvRows.join('\n'));
+
+        dbExport.close();
+    });
+});
