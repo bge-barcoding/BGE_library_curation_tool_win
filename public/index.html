@@ -303,6 +303,10 @@
     <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script>
+    const displayNames = {
+        sampleid: "sample_id",
+        species_reference: "authorship"
+    };
     document.addEventListener("DOMContentLoaded", () => {
         fetch('/datasets')
             .then(response => response.json())
@@ -332,7 +336,7 @@
     }    
         let changes = [];
         let statusSelections = {}; 
-    document.addEventListener('DOMContentLoaded', async () => {
+    document.addEventListener('DOMContentLoaded', async () => {        
     function updateSearchTypeOptions() {
         const checkboxes = document.querySelectorAll('input[name="columns"]:checked');
         const selectedColumns = Array.from(checkboxes).map(cb => cb.value);
@@ -346,7 +350,7 @@
 
         // Populate new options
         selectedColumns.forEach(column => {
-            const option = `<option value="${column}">${column}</option>`;
+            const option = `<option value="${column}">${displayNames[column] || column}</option>`;
             searchTypeDropdown.innerHTML += option;
             searchType2Dropdown.innerHTML += option;
         });
@@ -362,7 +366,7 @@
 
         const container = checkboxGroup.querySelector('.checkbox-container');
 
-        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'itentified_by', 'taxonomy_notes', 'sex', 'life_stages', 'notes', 'voucher_type', 'collectors', 'collection_date', 'collection_type', 'collection_notes', 'geoid', 'country_ocean', 'province', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc', 'nuc_basecount', 'recordset_code_arr', 'gb_acs', 'additionalStatus', 'url', 'ranking'];
+        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'identified_by', 'taxonomy_notes', 'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end', 'collection_notes', 'geoid', 'country_ocean', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'url', 'ranking'];       
 
         columns.forEach(column => {
             const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_ocean', 'url', 'status'].includes(column) ? 'checked' : '';
@@ -370,7 +374,7 @@
             container.innerHTML += `
                 <div class="checkbox-item">
                     <input type="checkbox" id="column${column}" name="columns" value="${column}" ${isChecked}>
-                    <label for="column${column}">${column}</label>
+                    <label for="column${column}">${displayNames[column] || column}</label>
                 </div>
             `;
         });
@@ -711,14 +715,17 @@ async function applyFilter() {
     const searchTerm2 = document.getElementById('searchTerm2').value;
     const searchType2 = document.getElementById('searchType2').value;
 
-    let columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
+    let columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);    
 
     if (columns.length === 0) {
         columns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking'];
     }
 
     const extraHeaders = ['BAGS', 'BIN Info', 'Status', 'Reason Name Correction', 'Correct Species Name', 'Curator Notes', 'Action'];
-    const thead = `<thead><tr>${columns.map(col => `<th>${col}</th>`).join('')}${extraHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
+    const thead = `<thead><tr>${
+      columns.map(col => `<th>${displayNames[col] || col}</th>`).join('')
+    }${extraHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
+
     document.getElementById('recordsTable').innerHTML = `<table id="dataTable">${thead}<tbody></tbody></table>`;
 
     if ($.fn.DataTable.isDataTable("#dataTable")) {
@@ -755,7 +762,7 @@ async function applyFilter() {
                     searchType,
                     searchTerm2,
                     searchType2,
-                    columns,
+                    columns,                    
                     includeInvalid: !hideInvalidRecords,
                     draw: d.draw,
                     order: d.order
@@ -798,6 +805,7 @@ async function applyFilter() {
             $('td', row).eq(columns.length + 3).html(`
                 <select>
                     <option value="" ${reasonValue === '' ? 'selected' : ''}></option>
+                    <option value="other" ${reasonValue === 'other' ? 'selected' : ''}>other</option>
                     <option value="misidentified" ${reasonValue === 'misidentified' ? 'selected' : ''}>misidentified</option>
                     <option value="synonym" ${reasonValue === 'synonym' ? 'selected' : ''}>synonym</option>
                     <option value="typo" ${reasonValue === 'typo' ? 'selected' : ''}>typo</option>

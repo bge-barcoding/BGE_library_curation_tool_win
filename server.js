@@ -144,6 +144,7 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                     associated_taxa TEXT,
                     collection_date TEXT,
                     collection_date_start TEXT,
+                    collection_date_end TEXT,
                     collection_date_accuracy TEXT,
                     collection_event_id TEXT,
                     collection_time TEXT,
@@ -151,7 +152,7 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                     geoid TEXT,
                     country_ocean TEXT,
                     country_iso TEXT,
-                    province TEXT,
+                    province_state TEXT,
                     region TEXT,
                     sector TEXT,
                     site TEXT,
@@ -178,8 +179,7 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                     extrainfo TEXT,
                     country TEXT,
                     collection_note TEXT,
-                    associated_specimen TEXT,
-                    gb_acs TEXT,
+                    associated_specimen TEXT,                    
                     nucraw TEXT,
                     SPECIES_ID TEXT,
                     TYPE_SPECIMEN TEXT,
@@ -203,11 +203,11 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                         family, subfamily, tribe, genus, species, subspecies, species_reference, identification, identification_method,
                         identification_rank, identified_by, identifier_email, taxonomy_notes, sex, reproduction, life_stage, short_note,
                         notes, voucher_type, tissue_type, specimen_linkout, associated_specimens, associated_taxa, collection_date, collection_date_start,
-                        collection_date_accuracy, collection_event_id, collection_time, collection_notes, geoid, country_ocean,
-                        country_iso, province, region, sector, site, site_code, coord, coord_accuracy, coord_source, elev, elev_accuracy,
+                        collection_date_end, collection_date_accuracy, collection_event_id, collection_time, collection_notes, geoid, country_ocean,
+                        country_iso, province_state, region, sector, site, site_code, coord, coord_accuracy, coord_source, elev, elev_accuracy,
                         depth, depth_accuracy, habitat, sampling_protocol, nuc, nuc_basecount, insdc_acs, funding_src, marker_code,
                         primers_forward, primers_reverse, sequence_run_site, sequence_upload_date, recordset_code_arr, extrainfo, country,
-                        collection_note, associated_specimen, gb_acs, nucraw, SPECIES_ID, TYPE_SPECIMEN, SEQ_QUALITY, HAS_IMAGE, COLLECTORS,
+                        collection_note, associated_specimen, nucraw, SPECIES_ID, TYPE_SPECIMEN, SEQ_QUALITY, HAS_IMAGE, COLLECTORS,
                         IDENTIFIER, ID_METHOD, INSTITUTION, PUBLIC_VOUCHER, MUSEUM_ID, curator_notes
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
@@ -221,14 +221,14 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                             record.species, record.subspecies, record.species_reference, record.identification, record.identification_method,
                             record.identification_rank, record.identified_by, record.identifier_email, record.taxonomy_notes, record.sex, record.reproduction,
                             record.life_stage, record.short_note, record.notes, record.voucher_type, record.tissue_type, record.specimen_linkout,
-                            record.associated_specimens, record.associated_taxa, record.collection_date, record.collection_date_start,
+                            record.associated_specimens, record.associated_taxa, record.collection_date, record.collection_date_start, record.collection_date_end,
                             record.collection_date_accuracy, record.collection_event_id, record.collection_time, record.collection_notes, record.geoid,
-                            record.country_ocean, record.country_iso, record.province, record.region, record.sector, record.site, record.site_code,
+                            record.country_ocean, record.country_iso, record.province_state, record.region, record.sector, record.site, record.site_code,
                             record.coord, record.coord_accuracy, record.coord_source, record.elev, record.elev_accuracy, record.depth, record.depth_accuracy,
                             record.habitat, record.sampling_protocol, record.nuc, record.nuc_basecount, record.insdc_acs, record.funding_src,
                             record.marker_code, record.primers_forward, record.primers_reverse, record.sequence_run_site, record.sequence_upload_date,
                             record.recordset_code_arr, record.extrainfo, record.country, record.collection_note, record.associated_specimen,
-                            record.gb_acs, record.nucraw, record.SPECIES_ID, record.TYPE_SPECIMEN, record.SEQ_QUALITY, record.HAS_IMAGE, record.COLLECTORS,
+                            record.nucraw, record.SPECIES_ID, record.TYPE_SPECIMEN, record.SEQ_QUALITY, record.HAS_IMAGE, record.COLLECTORS,
                             record.IDENTIFIER, record.ID_METHOD, record.INSTITUTION, record.PUBLIC_VOUCHER, record.MUSEUM_ID, record.curator_notes
                         ].map(value => typeof value === 'object' ? JSON.stringify(value) : value || null);
 
@@ -604,7 +604,7 @@ app.post('/submit', (req, res) => {
             });            
         }
 
-        // **🔹 Handle "species name changes" (correct species name, typo, synonym, misidentified, empty)**
+        // **🔹 Handle "species name changes" (correct species name, typo, synonym, misidentified, other, empty)**
         else if (species && species.trim() !== currentSpecies) {
             const updatedSpecies = species.trim();
             changes.oldValues.species = currentSpecies;
@@ -647,7 +647,7 @@ app.post('/submit', (req, res) => {
                         res.status(404).json({ success: false, message: 'No records found with the current species name' });
                     }
                 });
-            } else if (additionalStatus === 'misidentified' || !additionalStatus) {
+            } else if (additionalStatus === 'misidentified' || additionalStatus === 'other' || !additionalStatus) {
                 const sqlUpdateOne = `UPDATE records SET species = ? WHERE processid = ?`;
                 db.run(sqlUpdateOne, [updatedSpecies, processId], function(err) {
                     if (err) {
@@ -708,6 +708,7 @@ app.post('/search', (req, res) => {
                     </td>
                     <td>
                         <select id="additionalStatus-${index}">
+                            <option value="other" ${item.additionalStatus === 'other' ? 'selected' : ''}>other</option>                            
                             <option value="misidentified" ${item.additionalStatus === 'misidentified' ? 'selected' : ''}>misidentified</option>
                             <option value="synonym" ${item.additionalStatus === 'synonym' ? 'selected' : ''}>synonym</option>
                             <option value="typo" ${item.additionalStatus === 'typo' ? 'selected' : ''}>typo</option>                            
@@ -923,7 +924,9 @@ app.post('/download-csv', express.json(), (req, res) => {
         const renamed = {
             'additionalStatus': 'reason name correction',
             'species': 'correct species name',
-            'curator_notes': 'curator notes'
+            'curator_notes': 'curator notes',
+            'sampleid' : 'sample_id',
+            'species_reference' : 'authorship'
         };
 
         // Step 3: Define default CSV columns in required order
