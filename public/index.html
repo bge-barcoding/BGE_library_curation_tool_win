@@ -174,7 +174,7 @@
                 <li>Check a box with the <b>Search Type</b> you wish in <b>Select Columns to Display:</b> to make it available in <b>Search Type</b> dropdown menu.
                 <li>Select a corresponding <b>Search Type</b> from the dropdown menu.</li>
                 <li>If needed, you can use <b>Search Term 2</b> and its corresponding <b>Search Type</b> to add an additional filter.</li>
-                <li>Click <b>Apply Filter</b> to display results matching your criteria.</li>
+                <li>Click <b>Refresh Table</b> to display results matching your criteria.</li>
             </ul>
         </div>
     </div>   
@@ -198,9 +198,9 @@
         <div id="buttonsInfo" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
             <strong>Explanation of Buttons:</strong>
             <ul>
-                <li><b>Apply Filter:</b> Filters the records based on your selected criteria and displays the results. / Refreshs the HTML-table</li>
+                <li><b>Refresh Table:</b> Filters the records based on your selected criteria and displays the results. / Refreshs the HTML-table</li>
                 <li><b>Show/Hide Invalid Records:</b> Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species).</li>
-                <li><b>Load Dataset:</b> To load datasets: Select one from the dropdown, click 'Load dataset', confirm the popup with 'OK', then click 'Apply Filter' to view the new dataset.</li>                
+                <li><b>Load Dataset:</b> To load datasets: Select one from the dropdown, click 'Load dataset', confirm the popup with 'OK', then click 'Refresh Table' to view the new dataset.</li>                
                 <li><b>Stop Curation Tool:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>
                 <li><b>Export CSV:</b> Export the database as a CSV file. Selected columns (in Select Columns to Display) will be included; if none are selected, all columns will be exported.</li>
             </ul>            
@@ -208,7 +208,7 @@
     </div>
         <div class="server-control">
         <form id="serverControlForm">            
-            <button type="button" onclick="applyFilter()" style="background-color: lightyellow; color: black;">Apply Filter</button>
+            <button type="button" onclick="applyFilter()" style="background-color: lightyellow; color: black;">Refresh Table</button>
             <button id="toggleInvalidButton" onclick="toggleInvalidRecords()" class="hiding">Show Invalid Records</button>            
             <select id="dataset-selector"></select>
             <button onclick="switchDataset()">Load Dataset</button>
@@ -275,7 +275,7 @@
             <div id="columnsInfo" style="display: none; background-color: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-top: 10px;">
                 <strong>How to use "Select Columns to Display":</strong>
                 <ul>
-                    <li>Check the boxes next to the column names you want to display in the table and press <b>Apply Filter</b> to refresh the HTML-table.</li>
+                    <li>Check the boxes next to the column names you want to display in the table and press <b>Refresh Table</b> to refresh the HTML-table.</li>
                     <li>Unchecked columns will not be visible in the table.</li>
                     <li>The table dynamically updates to reflect the selected columns.</li>
                     <li>This feature allows you to customize the table view for better focus on relevant data.</li>
