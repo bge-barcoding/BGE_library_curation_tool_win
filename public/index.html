@@ -366,10 +366,10 @@
 
         const container = checkboxGroup.querySelector('.checkbox-container');
 
-        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'identified_by', 'taxonomy_notes', 'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end', 'collection_notes', 'geoid', 'country_ocean', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'url', 'ranking'];       
+        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'identified_by', 'taxonomy_notes', 'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end', 'collection_notes', 'geoid', 'country_ocean', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'url', 'ranking', 'sumscore', 'country_representative', 'haplotype_id', 'otu_id'];       
 
         columns.forEach(column => {
-            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_ocean', 'url', 'status'].includes(column) ? 'checked' : '';
+            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_ocean', 'country_representative', 'url', 'status'].includes(column) ? 'checked' : '';
 
             container.innerHTML += `
                 <div class="checkbox-item">
@@ -992,7 +992,7 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
                             </style>
                         </head>
                         <body>
-                            <img src="ressources/Ranking.jpg" alt="Ranking Explanation">
+                            <img src="ressources/ranking.png" alt="Ranking Explanation">
                         </body>
                     </html>
                 `);
