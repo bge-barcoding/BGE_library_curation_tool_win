@@ -327,18 +327,26 @@ app.post('/generate', (req, res) => {
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
 
     let orderClause = '';
-    if (Array.isArray(req.body.order)) {
-        const sortParts = req.body.order.map(o => {
-            const col = columns[o.column];
-            const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
-            if (allowedColumns.includes(col)) {
-                return `${col} ${dir}`;
-            }
-            return null;
-        }).filter(Boolean);
-        if (sortParts.length > 0) {
-            orderClause = ` ORDER BY ${sortParts.join(', ')}`;
-        }
+
+    const customSort = `
+      species COLLATE NOCASE ASC,
+      CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
+      CASE WHEN ranking GLOB '[0-9]*' THEN CAST(ranking AS INTEGER) ELSE 9999 END,
+      CAST(sumscore AS INTEGER) DESC
+    `;
+
+    orderClause = `ORDER BY ${customSort}`;
+
+    if (Array.isArray(req.body.order) && req.body.order.length > 0) {
+      const userSort = req.body.order
+        .map(o => {
+          const col = columns[o.column];
+          const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
+          return allowedColumns.includes(col) ? `${col} ${dir}` : null;
+        })
+        .filter(Boolean)
+        .join(', ');
+      if (userSort) orderClause += `, ${userSort}`;
     }
 
 
