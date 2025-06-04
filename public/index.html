@@ -742,7 +742,7 @@ async function applyFilter() {
         serverSide: true,
         processing: true,
         ordering: true,
-        order: defaultOrder,
+        order: [], //defaultOrder, #this prevents default sorting, if active!!! 
         pageLength: entriesPerPage,
         lengthChange: false,
         ajax: {

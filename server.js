@@ -333,14 +333,15 @@ app.post('/generate', (req, res) => {
 
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
 
-    const customSort = `
-        identification COLLATE NOCASE ASC,
-        CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
-        CASE WHEN ranking GLOB '[0-9]*' THEN CAST(ranking AS INTEGER) ELSE 9999 END,
-        CAST(sumscore AS INTEGER) DESC
-    `;
+    // const customSort = `
+    //     identification COLLATE NOCASE ASC,
+    //     CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
+    //     CASE WHEN ranking GLOB '[0-9]*' THEN CAST(ranking AS INTEGER) ELSE 9999 END,
+    //     CAST(sumscore AS INTEGER) DESC
+    // `;
 
-    let orderClause = ` ORDER BY ${customSort}`;
+    //let orderClause = ` ORDER BY ${customSort}`;
+    let orderClause = '';
 
     if (Array.isArray(req.body.order) && req.body.order.length > 0) {
         const userSort = req.body.order
@@ -351,8 +352,29 @@ app.post('/generate', (req, res) => {
             })
             .filter(Boolean)
             .join(', ');
-        if (userSort) orderClause += `, ${userSort}`;
+
+        if (userSort) {
+            orderClause = ` ORDER BY ${userSort}`;
+        }
+    } else {
+        // ✅ Fallback default sort logic
+        orderClause = ` ORDER BY 
+            identification COLLATE NOCASE ASC,
+            CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
+            CAST(sumscore AS INTEGER) DESC`;
     }
+
+    // if (Array.isArray(req.body.order) && req.body.order.length > 0) {
+    //     const userSort = req.body.order
+    //         .map(o => {
+    //             const col = columns[o.column];
+    //             const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
+    //             return allowedColumns.includes(col) ? `${col} ${dir}` : null;
+    //         })
+    //         .filter(Boolean)
+    //         .join(', ');
+    //     if (userSort) orderClause += `, ${userSort}`;
+    // }
 
     db.get(`SELECT COUNT(*) as count FROM records`, [], (err, totalResult) => {
         if (err) return res.status(500).json({ success: false, message: 'Error counting total records' });
