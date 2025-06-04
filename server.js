@@ -178,7 +178,11 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                     associated_specimen TEXT,                    
                     nucraw TEXT,                    
                     additionalStatus TEXT,
-                    curator_notes TEXT
+                    curator_notes TEXT,
+                    sumscore,
+                    country_representative,
+                    haplotype_id,
+                    otu_id
 
                 )`, (createErr) => {
                     if (createErr) return reject(`Error creating table: ${createErr}`);
@@ -192,8 +196,9 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                         collection_date_end, collection_date_accuracy, collection_event_id, collection_time, collection_notes, geoid, country_ocean,
                         country_iso, province_state, region, sector, site, site_code, coord, coord_accuracy, coord_source, elev, elev_accuracy,
                         depth, depth_accuracy, habitat, sampling_protocol, nuc_basecount, insdc_acs, funding_src, marker_code, sequence_run_site, 
-                        sequence_upload_date, recordset_code_arr, extrainfo, country, collection_note, associated_specimen, nucraw, curator_notes, additionalStatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                        sequence_upload_date, recordset_code_arr, extrainfo, country, collection_note, associated_specimen, nucraw, curator_notes, additionalStatus,
+                        sumscore, country_representative, haplotype_id, otu_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
                     records.forEach(record => {
                         const values = [
@@ -211,7 +216,8 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                             record.coord, record.coord_accuracy, record.coord_source, record.elev, record.elev_accuracy, record.depth, record.depth_accuracy,
                             record.habitat, record.sampling_protocol, record.nuc_basecount, record.insdc_acs, record.funding_src,
                             record.marker_code, record.sequence_run_site, record.sequence_upload_date, record.recordset_code_arr, record.extrainfo, record.country, 
-                            record.collection_note, record.associated_specimen, record.nucraw, record.curator_notes, record.additionalStatus
+                            record.collection_note, record.associated_specimen, record.nucraw, record.curator_notes, record.additionalStatus, record.sumscore, 
+                            record.country_representative, record.haplotype_id, record.otu_id
                         ].map(value => typeof value === 'object' ? JSON.stringify(value) : value || null);
 
                         insertStmt.run(values);
@@ -302,9 +308,10 @@ app.post('/generate', (req, res) => {
         draw
     } = req.body;
 
-    const allowedColumns = [ // ✅ update as needed
-      'bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking', 'species', 'status', 'class', 'order',
-      'family', 'genus', 'subspecies', 'species_reference'
+    const allowedColumns = [
+        'bin_uri', 'processid', 'identification', 'country_ocean', 'url',
+        'ranking', 'sumscore', 'species', 'status', 'class', 'order',
+        'family', 'genus', 'subspecies', 'species_reference', 'country_representative'
     ];
 
     const conditions = [];
@@ -326,29 +333,26 @@ app.post('/generate', (req, res) => {
 
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
 
-    let orderClause = '';
-
     const customSort = `
-      species COLLATE NOCASE ASC,
-      CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
-      CASE WHEN ranking GLOB '[0-9]*' THEN CAST(ranking AS INTEGER) ELSE 9999 END,
-      CAST(sumscore AS INTEGER) DESC
+        identification COLLATE NOCASE ASC,
+        CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
+        CASE WHEN ranking GLOB '[0-9]*' THEN CAST(ranking AS INTEGER) ELSE 9999 END,
+        CAST(sumscore AS INTEGER) DESC
     `;
 
-    orderClause = `ORDER BY ${customSort}`;
+    let orderClause = ` ORDER BY ${customSort}`;
 
     if (Array.isArray(req.body.order) && req.body.order.length > 0) {
-      const userSort = req.body.order
-        .map(o => {
-          const col = columns[o.column];
-          const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
-          return allowedColumns.includes(col) ? `${col} ${dir}` : null;
-        })
-        .filter(Boolean)
-        .join(', ');
-      if (userSort) orderClause += `, ${userSort}`;
+        const userSort = req.body.order
+            .map(o => {
+                const col = columns[o.column];
+                const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
+                return allowedColumns.includes(col) ? `${col} ${dir}` : null;
+            })
+            .filter(Boolean)
+            .join(', ');
+        if (userSort) orderClause += `, ${userSort}`;
     }
-
 
     db.get(`SELECT COUNT(*) as count FROM records`, [], (err, totalResult) => {
         if (err) return res.status(500).json({ success: false, message: 'Error counting total records' });
@@ -406,8 +410,12 @@ app.post('/generate', (req, res) => {
                 gradeCounts
             };
 
-            // ✅ Fixed pagination query — add LIMIT and OFFSET
-            const paginatedQuery = `SELECT * FROM records${whereClause}${orderClause} LIMIT ? OFFSET ?`;
+            const paginatedQuery = `
+                SELECT * FROM records
+                ${whereClause}
+                ${orderClause}
+                LIMIT ? OFFSET ?
+            `;
             const paginatedParams = [...params, parseInt(length), parseInt(start)];
 
             db.all(paginatedQuery, paginatedParams, (err, paginatedRows) => {
@@ -975,18 +983,13 @@ app.post('/download-csv', express.json(), (req, res) => {
                 return finalHeaders.map(header => {
                     if (header === 'selected records') {
                         const status = (row['status'] || '').toLowerCase();
-                        const ranking = parseInt(row['ranking'], 10);
+                        const rep = (row['country_representative'] || '').toLowerCase();
                         const processid = row['processid'];
 
                         const isSelected =
-                            (
-                                [1, 2, 3].includes(ranking) &&
-                                !['invalid record', 'exclude species'].includes(status)
-                            ) ||
-                            (
-                                [4, 5, 6].includes(ranking) &&
-                                ['valid record'].includes(status)
-                            );
+                            (rep === 'yes' && (!status || status === '')) ||
+                            (rep === 'no' && status === 'valid record') ||
+                            (rep === 'yes' && status === 'valid record');
 
                         return isSelected ? JSON.stringify(processid) : '""';
                     }

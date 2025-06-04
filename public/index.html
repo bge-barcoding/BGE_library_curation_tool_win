@@ -369,7 +369,7 @@
         const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'identified_by', 'taxonomy_notes', 'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end', 'collection_notes', 'geoid', 'country_ocean', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'url', 'ranking', 'sumscore', 'country_representative', 'haplotype_id', 'otu_id'];       
 
         columns.forEach(column => {
-            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_ocean', 'country_representative', 'url', 'status'].includes(column) ? 'checked' : '';
+            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_representative', 'country_ocean', 'url', 'status'].includes(column) ? 'checked' : '';
 
             container.innerHTML += `
                 <div class="checkbox-item">
@@ -440,6 +440,8 @@
         const searchTypeElement = document.getElementById(searchTypeId);
         const selectedColumn = searchTypeElement.value;
         const checkbox = document.getElementById(`column${selectedColumn}`);
+        if (checkbox) checkbox.checked = true;
+        else console.warn(`Missing checkbox for column: ${selectedColumn}`);
         if (checkbox && !checkbox.checked) {
             checkbox.checked = true;
         }
@@ -498,54 +500,48 @@ function applyStatusRowColoringAndExcludeRed() {
     }
 
     const statusColumnIndex = getColumnIndexByName('#dataTable', 'status');
-    const rankingColumnIndex = getColumnIndexByName('#dataTable', 'ranking');
+    const countryRepColumnIndex = getColumnIndexByName('#dataTable', 'country_representative');
 
     if (statusColumnIndex === -1) {
         console.error('Status column not found!');
         return;
     }
-    if (rankingColumnIndex === -1) {
-        console.error('Ranking column not found!');
-        return;
+
+    const hasCountryRepColumn = countryRepColumnIndex !== -1;
+    if (!hasCountryRepColumn) {
+        console.warn('Skipping country representative coloring: column not in table.');
     }
 
-    // Use DataTables API to iterate through all visible rows across all pages
     dataTable.rows().every(function () {
         const row = this.node();
         const cells = row.getElementsByTagName('td');
 
-        if (cells.length > Math.max(statusColumnIndex, rankingColumnIndex)) {
+        if (cells.length > statusColumnIndex) {
             const statusCell = cells[statusColumnIndex];
-            const rankingCell = cells[rankingColumnIndex];
-
-            // Get status from dropdown
             const dropdown = statusCell.querySelector('select');
             const statusValue = dropdown ? dropdown.value.trim().toLowerCase() : '';
 
-            // Get ranking value (convert to number)
-            const rankingValue = parseInt(rankingCell.textContent.trim(), 10);
-
-            console.log('Processing Row:', row, 'Status:', statusValue || '<empty>', 'Ranking:', rankingValue);
-
-            // Reset styles and visibility
+            // Reset styles
             row.style.backgroundColor = '';
             row.style.color = '';
-            row.style.display = ''; // Ensure all rows are visible by default
+            row.style.display = '';
 
-            // Apply light-grey background for ranking 1, 2, or 3
-            if ([1, 2, 3].includes(rankingValue)) {
-                row.style.backgroundColor = '#d6d6d6'; // Light-grey
+            // ✅ Optional grey for rep = yes
+            if (hasCountryRepColumn) {
+                const repCell = cells[countryRepColumnIndex];
+                const repValue = repCell ? repCell.textContent.trim().toLowerCase() : '';
+                if (repValue === 'yes') {
+                    row.style.backgroundColor = '#d6d6d6';
+                }
             }
 
-            // Override with status-based colors
+            // ✅ Override colors by status
             if (statusValue === 'valid record' || statusValue === 'reinclude species') {
-                row.style.backgroundColor = '#d4edda'; // Green
+                row.style.backgroundColor = '#d4edda';
                 row.style.color = '#155724';
             } else if (statusValue === 'invalid record' || statusValue === 'exclude species') {
-                row.style.backgroundColor = '#f8d7da'; // Red
+                row.style.backgroundColor = '#f8d7da';
                 row.style.color = '#721c24';
-
-                // Hide red rows if needed
                 if (hideInvalidRecords) {
                     row.style.display = 'none';
                 }
@@ -574,33 +570,34 @@ function toggleInvalidRecords() {
     applyFilter();
 }
 
-document.getElementById('toggleInvalidRecords').addEventListener('click', async () => {
-    hideInvalidRecords = !hideInvalidRecords;
+document.addEventListener('DOMContentLoaded', () => {
+  const toggleButton = document.getElementById('toggleInvalidRecords');
+  if (toggleButton) {
+    toggleButton.addEventListener('click', async () => {
+      hideInvalidRecords = !hideInvalidRecords;
 
-    // Preserve active filters
-    const searchTerm = document.getElementById('searchTerm').value;
-    const searchType = document.getElementById('searchType').value;
-    const searchTerm2 = document.getElementById('searchTerm2').value;
-    const searchType2 = document.getElementById('searchType2').value;
+      const searchTerm = document.getElementById('searchTerm').value;
+      const searchType = document.getElementById('searchType').value;
+      const searchTerm2 = document.getElementById('searchTerm2').value;
+      const searchType2 = document.getElementById('searchType2').value;
 
-    // Preserve current page before destroying the DataTable
-    let currentPage = 0;
-    if ($.fn.DataTable.isDataTable("#dataTable")) {
+      let currentPage = 0;
+      if ($.fn.DataTable.isDataTable("#dataTable")) {
         currentPage = $('#dataTable').DataTable().page();
-    }
+      }
 
-    try {
+      try {
         const response = await fetch('/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                searchTerm, 
-                searchType, 
-                searchTerm2, 
-                searchType2, 
-                columns: ['bin_uri', 'processid', 'identification', 'country_ocean', 'ranking'], // Ensure correct column order
-                includeInvalid: !hideInvalidRecords 
-            })  
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            searchTerm,
+            searchType,
+            searchTerm2,
+            searchType2,
+            columns: ['bin_uri', 'processid', 'identification', 'country_ocean', 'ranking', 'country_representative'],
+            includeInvalid: !hideInvalidRecords
+          })
         });
 
         if (!response.ok) throw new Error('Failed to fetch records');
@@ -608,37 +605,35 @@ document.getElementById('toggleInvalidRecords').addEventListener('click', async 
         const data = await response.json();
         document.getElementById('recordsTable').innerHTML = data.table;
 
-        // **Destroy old DataTable instance before reinitializing**
         if ($.fn.DataTable.isDataTable("#dataTable")) {
-            $('#dataTable').DataTable().destroy();
+          $('#dataTable').DataTable().destroy();
         }
 
-        // **Reinitialize DataTable and restore page number**
         const dataTable = $('#dataTable').DataTable({
-            "paging": true,
-            "searching": true,
-            "ordering": true,
-            "info": true,
-            "drawCallback": function() {
-                applyStatusRowColoringAndExcludeRed(); // Apply row coloring after rendering
-                colorizeBinUriCells(); // Apply bin_uri coloring after rendering
-            }
+          paging: true,
+          searching: true,
+          ordering: true,
+          info: true,
+          drawCallback: function () {
+            applyStatusRowColoringAndExcludeRed();
+            colorizeBinUriCells();
+          }
         });
 
-        // Restore the previous page after table reload
         dataTable.page(currentPage).draw('page');
 
-        // **Ensure button text reflects current state**
-        document.getElementById('toggleInvalidRecords').textContent = hideInvalidRecords
-            ? 'Show Invalid Records'
-            : 'Hide Invalid Records';
+        toggleButton.textContent = hideInvalidRecords
+          ? 'Show Invalid Records'
+          : 'Hide Invalid Records';
 
         console.log(`Show/Hide Invalid clicked. Page restored to ${currentPage + 1}. Button state: ${hideInvalidRecords ? 'Show Invalid Records' : 'Hide Invalid Records'}`);
 
-    } catch (error) {
+      } catch (error) {
         console.error('Error fetching records:', error);
-    }
-});
+      }
+    }); 
+  }     
+});     
 
 function getColumnIndexByName(table, columnName) {
     const headers = $(table).find('thead th');
@@ -715,15 +710,15 @@ async function applyFilter() {
     const searchTerm2 = document.getElementById('searchTerm2').value;
     const searchType2 = document.getElementById('searchType2').value;
 
-    let columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);    
+    let columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
 
     if (columns.length === 0) {
-        columns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking'];
+        columns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking', 'country_representative'];
     }
 
     const extraHeaders = ['BAGS', 'BIN Info', 'Status', 'Reason Name Correction', 'Correct Species Name', 'Curator Notes', 'Action'];
     const thead = `<thead><tr>${
-      columns.map(col => `<th>${displayNames[col] || col}</th>`).join('')
+        columns.map(col => `<th>${displayNames[col] || col}</th>`).join('')
     }${extraHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
 
     document.getElementById('recordsTable').innerHTML = `<table id="dataTable">${thead}<tbody></tbody></table>`;
@@ -747,14 +742,14 @@ async function applyFilter() {
         serverSide: true,
         processing: true,
         ordering: true,
-        order: defaultOrder,       
-        pageLength: entriesPerPage, // ✅ key line
-        lengthChange: false, // ✅ Prevent default dropdown from appearing
+        order: defaultOrder,
+        pageLength: entriesPerPage,
+        lengthChange: false,
         ajax: {
             url: '/generate',
             type: 'POST',
             contentType: 'application/json',
-            data: function (d) {                                
+            data: function (d) {
                 return JSON.stringify({
                     start: d.start,
                     length: d.length,
@@ -762,7 +757,7 @@ async function applyFilter() {
                     searchType,
                     searchTerm2,
                     searchType2,
-                    columns,                    
+                    columns,
                     includeInvalid: !hideInvalidRecords,
                     draw: d.draw,
                     order: d.order
@@ -773,19 +768,19 @@ async function applyFilter() {
         ordering: true,
         searching: false,
         info: true,
-        drawCallback: function(settings) {
-            updateStats(settings.json);  // Update your statistics box after data loads
+        drawCallback: function (settings) {
+            updateStats(settings.json);
+            applyStatusRowColoringAndExcludeRed(); // ✅ apply new coloring after redraw
         },
-        createdRow: function(row, data, dataIndex) {
+        createdRow: function (row, data, dataIndex) {
             const binUri = data[columns.indexOf('bin_uri')];
             const statusValue = data[columns.length + 2];
             const reasonValue = data[columns.length + 3];
             const speciesValue = data[columns.length + 4];
             const notesValue = data[columns.length + 5];
             const processId = data[columns.length + 6];
-            const rankingIndex = columns.indexOf('ranking');
-            const rankingValue = rankingIndex !== -1 ? parseInt(data[rankingIndex], 10) : NaN;
             const urlIndex = columns.indexOf('url');
+
             if (urlIndex !== -1) {
                 const rawUrl = data[urlIndex];
                 if (rawUrl) {
@@ -815,6 +810,7 @@ async function applyFilter() {
             $('td', row).eq(columns.length + 5).html(`<input type="text" value="${notesValue}">`);
             $('td', row).eq(columns.length + 6).html(`<button class="row-submit-button" onclick="submitRow(event, null, '${processId}')">Submit</button>`);
 
+            // ✅ Optional: Color bin_uri cells
             if (columns.indexOf('bin_uri') !== -1 && binUri) {
                 if (!binUriColorMap[binUri]) {
                     binUriColorMap[binUri] = getRandomColor();
@@ -823,17 +819,6 @@ async function applyFilter() {
                     backgroundColor: binUriColorMap[binUri],
                     color: '#ffffff'
                 });
-            }
-
-            if (!isNaN(rankingValue) && rankingValue >= 1 && rankingValue <= 3) {
-                $(row).css({ backgroundColor: '#d6d6d6', color: '' });
-            }
-
-            // Status overrides — always applied after ranking
-            if (statusValue.toLowerCase() === 'valid record' || statusValue.toLowerCase() === 'reinclude species') {
-                $(row).css({ backgroundColor: '#d4edda', color: '#155724' });
-            } else if (statusValue.toLowerCase() === 'invalid record' || statusValue.toLowerCase() === 'exclude species') {
-                $(row).css({ backgroundColor: '#f8d7da', color: '#721c24' });
             }
         }
     });
@@ -901,59 +886,95 @@ async function updateDistinctValues(column, searchTerm, searchType, searchTerm2,
                 }
             });
         }
-        // Function to submit single row
-        async function submitRow(event, index, processId) {
-            if (event) event.preventDefault();
+        // Function to submit single row (safe version)
+async function submitRow(event, index, processId) {
+    if (event) event.preventDefault();
 
-            let row;
-            if (event) {
-                row = event.target.closest('tr');
-            } else if (typeof index === 'number') {
-                const table = $('#dataTable').DataTable();
-                row = table.row(index).node();
-            } else {
-                console.error("submitRow: No valid event or index provided.");
-                return;
-            }
+    let row;
+    if (event) {
+        row = event.target.closest('tr');
+    } else if (typeof index === 'number') {
+        const table = $('#dataTable').DataTable();
+        row = table.row(index).node();
+    } else {
+        console.error("submitRow: No valid event or index provided.");
+        return;
+    }
 
-            const status = row.querySelector('td:nth-child(9) select').value;
-            const additionalStatus = row.querySelector('td:nth-child(10) select').value;
-            const species = row.querySelector('td:nth-child(11) input').value;
-            const curator_notes = row.querySelector('td:nth-child(12) input').value;
+    if (!row) {
+        console.error("submitRow: No table row found.");
+        return;
+    }
 
-            if (status === 'exclude species') {
-                const userConfirmed = confirm("You are about to exclude an entire species. Are you sure?");
-                if (!userConfirmed) return;
-            } else if (status === 'reinclude species') {
-                const userConfirmed = confirm("You are about to reinclude an entire species. Are you sure?");
-                if (!userConfirmed) return;
-            }
+    // Select dropdowns and inputs relative to the extra columns at the end of the row
+    const cells = row.querySelectorAll('td');
+    const extraOffset = 7; // We append 7 columns: BAGS, BIN Info, Status, Reason, Species, Notes, Action
 
-            try {
-                const response = await fetch('/submit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ processId, status, additionalStatus, species, curator_notes })
-                });
+    const statusCell = cells[cells.length - extraOffset + 2]; // Status dropdown cell
+    const reasonCell = cells[cells.length - extraOffset + 3]; // Additional status dropdown
+    const speciesCell = cells[cells.length - extraOffset + 4]; // Species input
+    const notesCell = cells[cells.length - extraOffset + 5];   // Curator notes input
 
-                if (!response.ok) throw new Error('Failed to submit row');
+    if (!statusCell || !reasonCell || !speciesCell || !notesCell) {
+        console.error("submitRow: Could not find expected editable cells.");
+        return;
+    }
 
-                showMessage('success', 'Submit successful');
+    const status = statusCell.querySelector('select')?.value || '';
+    const additionalStatus = reasonCell.querySelector('select')?.value || '';
+    const species = speciesCell.querySelector('input')?.value || '';
+    const curator_notes = notesCell.querySelector('input')?.value || '';
 
-            } catch (error) {
-                showMessage('error', 'Submit failed');
-                console.error(error);
-            }
+    if (status === 'exclude species') {
+        const userConfirmed = confirm("You are about to exclude an entire species. Are you sure?");
+        if (!userConfirmed) return;
+    } else if (status === 'reinclude species') {
+        const userConfirmed = confirm("You are about to reinclude an entire species. Are you sure?");
+        if (!userConfirmed) return;
+    }
+
+    try {
+        const response = await fetch('/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ processId, status, additionalStatus, species, curator_notes })
+        });
+
+        if (!response.ok) throw new Error('Failed to submit row');
+
+        showMessage('success', 'Submit successful');
+
+    } catch (error) {
+        showMessage('error', 'Submit failed');
+        console.error(error);
+    }
+}
+
+function submitAllRows() {
+    const table = $('#dataTable').DataTable();
+    table.rows({ page: 'current' }).every(function(index) {
+        const row = this.node();
+        const buttonCell = row.querySelector('td:last-child');
+        const button = buttonCell?.querySelector('button');
+
+        if (!button) {
+            console.warn(`submitAllRows: Submit button not found in row ${index}. Skipping.`);
+            return;
         }
 
-        function submitAllRows() {
-            const table = $('#dataTable').DataTable();
-            table.rows({ page: 'current' }).every(function(index) {
-                const row = this.node();
-                const processId = row.querySelector('td:nth-child(13) button').getAttribute('onclick').split("'")[1];
-                submitRow(undefined, index, processId);
-            });
+        const onclickAttr = button.getAttribute('onclick');
+        const match = onclickAttr?.match(/'([^']+)'/);
+        const processId = match ? match[1] : null;
+
+        if (!processId) {
+            console.warn(`submitAllRows: Could not extract processId from row ${index}.`);
+            return;
         }
+
+        submitRow(undefined, index, processId);
+    });
+}
+
 
         function showMessage(type, message) {
             const messageElement = document.getElementById(type === 'success' ? 'successMessage' : 'errorMessage');

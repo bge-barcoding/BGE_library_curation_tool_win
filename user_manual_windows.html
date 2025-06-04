@@ -110,6 +110,7 @@
   <ol>
     <li>Locate and extract <code>curation_tool_windows.zip</code>.</li>
     <li>Choose a destination folder (e.g., <code>C:\curation_tool_windows</code>).</li>
+    <li>Download the database files containing the families you wish to curate from <a href=https://bge-barcoding.github.io/manual-curation/ target="_blank">https://bge-barcoding.github.io/manual-curation/</a>. <br> Unzip the files and save them to the 'data/' folder.</li>
     <li>Ensure the folder structure looks like this:</li>
   </ol>
   <pre>
@@ -127,7 +128,7 @@ ProjectFolder/
 
   </pre>
   <div class="tip">
-    <strong>Tip:</strong> Load your data into <code>data/</code> before starting. If only an <code>.xml</code> file is present, a <code>.db</code> file will be generated automatically.
+    <strong>Tip:</strong> Load your data into <code>data/</code> before starting.
   </div>
   <div class="warning">
     <strong>Warning:</strong> Do not delete <code>data/</code> , <code>logs/</code> and <code>changes.log</code>
@@ -171,6 +172,10 @@ ProjectFolder/
     <tr><td><img src="public/ressources/user_manual/recordsonpage.png" alt="records on page dropdown"></td>
       <td>Adjust records shown on page.</td></tr>    
     <tr><th>HTML table</th></tr>
+    <tr><td>sumscore</td><td><b>sumscore:</b>
+    The total score of all 16 criteria assessed for each record. This is useful to highlight records with good metadata but might be lacking one or more key criteria dropping their rank.</td></tr>
+    <tr><td>country_representative</td><td><b>country_representative:</b>
+    The best record (i.e. the record with the highest sumscore within the best rank) automatically selected for each combination of species + country + OTU + BIN. When ties are encountered the script picks one record. These records capture the diversity within each BIN using OTUs clustered at 99% similarity, providing representatives for each species while reducing the duplication within the dataset. Experts can select other records as representatives if they choose.</td></tr>
     <tr><td><img src="public/ressources/user_manual/ranking.png" alt="Ranking"></td><td><b>Ranking:</b>
      Ranking system to pick representatives for each haplotype / species <br> 
      Show ranking scheme by clicking on the <b>red question mark</b> beside column Ranking in the HTML table</td></tr>
@@ -191,7 +196,7 @@ ProjectFolder/
     <tr><td><img src="public/ressources/user_manual/status.png" alt="Status - dropdown"></td>
       <td><b>Status - dropdown:</b> Mark records as <b>valid</b> or <b>invalid</b> and <b>exclude species</b> or <b>reinclude species</b> (a popup window will open and ask you if you are sure that you want to remove this species).Save changes by pressing the <b>Submit</b> button. Press the <b>Refresh Table</b> button to refresh the HTML-table and see the changes. Records marked as <u>valid appear green</u> and such marked as <u>invalid in red and will be hidden</u>. The number of BINs and records in the Statistics Panel is adjusted accordingly. Press the <b>Show/Hide Invalid Records</b> button to show them again (maybe you have to press the button several times to see a result).</td></tr>
     <tr><td><img src="public/ressources/user_manual/name_correction.png" alt="Reason Name Correction - dropdown"></td>
-      <td><b>Reason name correction - dropdown:</b> select a reason from the dropdown, if you correct a species name: <u>misidentified or no selection allows the correction of the species name for a single row synonym and typo will correct the species name for the whole selected species</u></td></tr>
+      <td><b>Reason name correction - dropdown:</b> select a reason from the dropdown, if you correct a species name: <u>other, misidentified or no selection allows the correction of the species name for a single row synonym and typo will correct the species name for the whole selected species</u></td></tr>
     <tr><td><img src="public/ressources/user_manual/correctspeciesname.png" alt="Correct Species Name"></td>
       <td><b>Correct species name:</b> In case of misidentification, typo, synonym, etc. you can correct the species name here.</td></tr>
     <tr><td><img src="public/ressources/user_manual/submit.png" alt="Submit"></td>
@@ -226,7 +231,7 @@ ProjectFolder/
   <h3 id="records">4.6. Records table</h3>
   <ul>
     <li><b>Shows predefined the following columns:</b> bin_uri, processid, identification (current species name), Country_Ocean, Ranking, BAGS, BIN info, url, Status, Reason name correction, Correct species name, Curator_notes and Actions.</li>
-    <div class="warning"><b>Important:</b> <b>Records highlighted in grey (Ranking 1-3)</b> are pre-selected for the reference library. You don't need to validate them. If you want to exclude them, set them as invalid. <b>Records not highlighted (with white background, Ranking 4-6)</b> are not intended to be part of the Reference Library. If you want to include them, please validate them.</div>
+    <div class="warning"><b>Important:</b> <b>Records highlighted in grey (country_representative = 'Yes')</b> are pre-selected for the reference library. You don't need to validate them. If you want to exclude them, set them as invalid. <b>Records not highlighted (with white background, country_representative = 'no')</b> are not intended to be part of the Reference Library. If you want to include them, please validate them.</div>
     <p><img src="public/ressources/user_manual/records_highlighted.png" alt="Highlighted Records in grey"></p>
     <li><b>Add further columns</b> by checking the corresponding checkboxes in the <strong>Columns Checkbox field</strong> and press <strong>Refresh Table</strong>.</li>
     <li><strong>BIN Info:</strong> Dynamically shows BIN-sharing and BIN-splitting events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records or species the values will be recalculated.</li>
@@ -249,8 +254,8 @@ ProjectFolder/
   <ul>
     <li><strong>Green rows:</strong> Marked valid</li>
     <li><strong>Red rows:</strong> Marked invalid or excluded</li>
-    <li><strong>White rows (Ranking 4–6):</strong> Not selected, but available for manual inclusion if validated</li>
-    <li><strong>Grey rows (Ranking 1–3):</strong> Pre-selected for the reference library</li>
+    <li><strong>White rows (country_representative = 'No'):</strong> Not selected, but available for manual inclusion if validated</li>
+    <li><strong>Grey rows (country_representative = 'Yes'):</strong> Pre-selected for the reference library</li>
   </ul>
   <p><img src="public/ressources/user_manual/table_color.png" alt="Records table with valid records in green, invalid in red and preselected in grey"></p>
   
