@@ -187,7 +187,8 @@ ProjectFolder/
         <li>Grade D = <3 speciemens in 1 BIN</li>
         <li>Grade E = BIN sharing (>1 speciens in single BIN)</li>
       </ul>
-      Show BAGS scheme by clicking on the <b>red question mark</b> beside column BAGS in the HTML table      
+      Show BAGS scheme by clicking on the <b>red question mark</b> beside column BAGS in the HTML table
+      <font color =red><b>BAGS</b> is computed dynamically in the curation tool. Whereas, <b>bags_static</b> is a static value, but sortable and searchble.</font>      
     </td></tr>
     <tr><td><img src="public/ressources/user_manual/bininfo.png" alt="BIN Info"></td>
       <td><b>BIN Info:</b> Dynamically shows <b>BIN-sharing</b> and <b>BIN-splitting</b> events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records or species the values will be recalculated.</td></tr>
@@ -230,7 +231,7 @@ ProjectFolder/
 
   <h3 id="records">4.6. Records table</h3>
   <ul>
-    <li><b>Shows predefined the following columns:</b> bin_uri, processid, identification (current species name), Country_Ocean, Ranking, BAGS, BIN info, url, Status, Reason name correction, Correct species name, Curator_notes and Actions.</li>
+    <li><b>Shows predefined the following columns:</b> bin_uri, processid, identification (current species name), Country_Ocean, url, Ranking, country_representative, bags_static, BAGS, BIN info, Status, Reason name correction, Correct species name, Curator_notes and Actions.</li>
     <div class="warning"><b>Important:</b> <b>Records highlighted in grey (country_representative = 'Yes')</b> are pre-selected for the reference library. You don't need to validate them. If you want to exclude them, set them as invalid. <b>Records not highlighted (with white background, country_representative = 'no')</b> are not intended to be part of the Reference Library. If you want to include them, please validate them.</div>
     <p><img src="public/ressources/user_manual/records_highlighted.png" alt="Highlighted Records in grey"></p>
     <li><b>Add further columns</b> by checking the corresponding checkboxes in the <strong>Columns Checkbox field</strong> and press <strong>Refresh Table</strong>.</li>

@@ -366,10 +366,10 @@
 
         const container = checkboxGroup.querySelector('.checkbox-container');
 
-        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'identified_by', 'taxonomy_notes', 'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end', 'collection_notes', 'geoid', 'country_ocean', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'url', 'ranking', 'sumscore', 'country_representative', 'haplotype_id', 'otu_id'];       
+        const columns = ['sampleid', 'bin_uri', 'processid', 'phylum', 'class', 'order', 'family', 'subfamily', 'genus', 'subspecies', 'species_reference', 'identification', 'identification_method', 'identified_by', 'taxonomy_notes', 'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end', 'collection_notes', 'geoid', 'country_ocean', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source', 'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'url', 'ranking', 'sumscore', 'country_representative', 'haplotype_id', 'otu_id', 'bags_static'];       
 
         columns.forEach(column => {
-            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'country_representative', 'country_ocean', 'url', 'status'].includes(column) ? 'checked' : '';
+            const isChecked = ['bin_uri', 'processid', 'identification', 'ranking', 'bags_static', 'country_representative', 'country_ocean', 'url', 'status'].includes(column) ? 'checked' : '';
 
             container.innerHTML += `
                 <div class="checkbox-item">
@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
             searchType,
             searchTerm2,
             searchType2,
-            columns: ['bin_uri', 'processid', 'identification', 'country_ocean', 'ranking', 'country_representative'],
+            columns: ['bin_uri', 'processid', 'identification', 'country_ocean', 'ranking', 'country_representative', 'bags_static'],
             includeInvalid: !hideInvalidRecords
           })
         });
@@ -713,7 +713,7 @@ async function applyFilter() {
     let columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
 
     if (columns.length === 0) {
-        columns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking', 'country_representative'];
+        columns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking', 'country_representative', 'bags_static'];
     }
 
     const extraHeaders = ['BAGS', 'BIN Info', 'Status', 'Reason Name Correction', 'Correct Species Name', 'Curator Notes', 'Action'];

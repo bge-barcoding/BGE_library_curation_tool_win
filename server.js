@@ -179,10 +179,11 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                     nucraw TEXT,                    
                     additionalStatus TEXT,
                     curator_notes TEXT,
-                    sumscore,
-                    country_representative,
-                    haplotype_id,
-                    otu_id
+                    sumscore TEXT,
+                    country_representative TEXT,
+                    haplotype_id TEXT,
+                    otu_id TEXT,
+                    bags_static TEXT
 
                 )`, (createErr) => {
                     if (createErr) return reject(`Error creating table: ${createErr}`);
@@ -197,8 +198,8 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                         country_iso, province_state, region, sector, site, site_code, coord, coord_accuracy, coord_source, elev, elev_accuracy,
                         depth, depth_accuracy, habitat, sampling_protocol, nuc_basecount, insdc_acs, funding_src, marker_code, sequence_run_site, 
                         sequence_upload_date, recordset_code_arr, extrainfo, country, collection_note, associated_specimen, nucraw, curator_notes, additionalStatus,
-                        sumscore, country_representative, haplotype_id, otu_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                        sumscore, country_representative, haplotype_id, otu_id, bags_static
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
                     records.forEach(record => {
                         const values = [
@@ -217,7 +218,7 @@ async function initDatabaseAndLoadData(xmlPath, database) {
                             record.habitat, record.sampling_protocol, record.nuc_basecount, record.insdc_acs, record.funding_src,
                             record.marker_code, record.sequence_run_site, record.sequence_upload_date, record.recordset_code_arr, record.extrainfo, record.country, 
                             record.collection_note, record.associated_specimen, record.nucraw, record.curator_notes, record.additionalStatus, record.sumscore, 
-                            record.country_representative, record.haplotype_id, record.otu_id
+                            record.country_representative, record.haplotype_id, record.otu_id, record.bags_static
                         ].map(value => typeof value === 'object' ? JSON.stringify(value) : value || null);
 
                         insertStmt.run(values);
@@ -309,9 +310,13 @@ app.post('/generate', (req, res) => {
     } = req.body;
 
     const allowedColumns = [
-        'bin_uri', 'processid', 'identification', 'country_ocean', 'url',
+        'bin_uri', 'processid', 'identification', 'country_ocean', 'url', 
         'ranking', 'sumscore', 'species', 'status', 'class', 'order',
-        'family', 'genus', 'subspecies', 'species_reference', 'country_representative'
+        'family', 'genus', 'subspecies', 'species_reference', 'country_representative', 'bags_static',
+        'sample_id', 'phylum', 'subfamily', 'identification_method', 'identified_by', 'taxonomy_notes',
+        'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end',
+        'collection_notes', 'geoid', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source',
+        'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'haplotype_id', 'out_id'
     ];
 
     const conditions = [];
