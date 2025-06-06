@@ -329,15 +329,7 @@ app.post('/generate', (req, res) => {
         draw
     } = req.body;
 
-    const allowedColumns = [
-        'bin_uri', 'processid', 'identification', 'country_ocean', 'url', 
-        'ranking', 'sumscore', 'species', 'status', 'class', 'order',
-        'family', 'genus', 'subspecies', 'species_reference', 'country_representative', 'bags_static',
-        'sample_id', 'phylum', 'subfamily', 'identification_method', 'identified_by', 'taxonomy_notes',
-        'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end',
-        'collection_notes', 'geoid', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source',
-        'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'haplotype_id', 'out_id'
-    ];
+    const allowedColumns = [/* your column list here */];
 
     const conditions = [];
     const params = [];
@@ -353,76 +345,57 @@ app.post('/generate', (req, res) => {
     }
 
     if (!includeInvalid) {
-        conditions.push(`(status IS NULL OR status NOT IN ('invalid record', 'exclude species'))`);
+        conditions.push(`(status IS NULL OR LOWER(status) NOT IN ('invalid record', 'exclude species'))`);
     }
 
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
 
-    let orderClause = '';
-
-    if (Array.isArray(req.body.order) && req.body.order.length > 0) {
-        const userSort = req.body.order
+    const orderClause = (Array.isArray(req.body.order) && req.body.order.length > 0)
+        ? ` ORDER BY ` + req.body.order
             .map(o => {
                 const col = columns[o.column];
                 const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
                 return allowedColumns.includes(col) ? `${col} ${dir}` : null;
             })
             .filter(Boolean)
-            .join(', ');
-
-        if (userSort) {
-            orderClause = ` ORDER BY ${userSort}`;
-        }
-    } else {
-        // ✅ Fallback default sort logic
-        orderClause = ` ORDER BY 
+            .join(', ')
+        : ` ORDER BY 
             identification COLLATE NOCASE ASC,
             CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
             CAST(sumscore AS INTEGER) DESC`;
-    }    
 
     db.get(`SELECT COUNT(*) as count FROM records`, [], (err, totalResult) => {
         if (err) return res.status(500).json({ success: false, message: 'Error counting total records' });
 
         const recordsTotal = totalResult.count;
 
-        db.all(`SELECT * FROM records${whereClause}`, params, (err, allRows) => {
-            if (err) return res.status(500).json({ success: false, message: 'Error fetching filtered records' });
-
-            const recordsFiltered = allRows.length;
-
-            const speciesSet = new Set(allRows.map(r => r.species).filter(Boolean));
-            const binSet = new Set(allRows.map(r => r.bin_uri).filter(Boolean));
-            const curatedCount = allRows.filter(r => r.status).length;
-            const uncuratedCount = allRows.length - curatedCount;
+        // First, fetch valid records to compute BAGS info (status NULL, 'valid', or 'reinclude species')
+        db.all(`SELECT * FROM records WHERE status IS NULL OR LOWER(status) IN ('valid', 'reinclude species')`, [], (err, validRows) => {
+            if (err) return res.status(500).json({ success: false, message: 'Error fetching valid records for BAGS' });
 
             const binSharingMap = {};
             const speciesBinMap = {};
+            const speciesSet = new Set(validRows.map(r => r.species).filter(Boolean));
+            const binSet = new Set(validRows.map(r => r.bin_uri).filter(b => b && b !== 'None'));
 
-            allRows.forEach(row => {
-                const validBinUri = row.bin_uri && row.bin_uri !== 'None';
-
-                if (validBinUri) {
+            validRows.forEach(row => {
+                if (row.bin_uri && row.bin_uri !== 'None') {
                     if (!binSharingMap[row.bin_uri]) binSharingMap[row.bin_uri] = new Set();
                     binSharingMap[row.bin_uri].add(row.species);
                 }
-
                 if (row.species) {
                     if (!speciesBinMap[row.species]) speciesBinMap[row.species] = new Set();
-                    if (validBinUri) speciesBinMap[row.species].add(row.bin_uri);
+                    speciesBinMap[row.species].add(row.bin_uri);
                 }
             });
 
-            // Precompute BAGS and bin_info per species
             const speciesBAGSMap = {};
-
             speciesSet.forEach(species => {
-                const speciesRecords = allRows.filter(r => r.species === species);
+                const speciesRecords = validRows.filter(r => r.species === species);
                 const bins = speciesBinMap[species] ? Array.from(speciesBinMap[species]) : [];
                 const validBins = bins.filter(bin => bin && bin !== 'None');
 
                 const binSharing = validBins.some(bin => binSharingMap[bin] && binSharingMap[bin].size > 1);
-
                 const grade = calculateBAGSGrade(
                     validBins.length,
                     speciesRecords.length,
@@ -451,90 +424,68 @@ app.post('/generate', (req, res) => {
                 };
             });
 
-            const binSharingEvents = Object.values(binSharingMap).filter(set => set.size > 1).length;
-            const binSplittingEvents = Object.values(speciesBinMap).filter(set => set.size > 1).length;
+            // Now fetch the filtered and paginated records
+            db.all(`SELECT * FROM records${whereClause}`, params, (err, allRows) => {
+                if (err) return res.status(500).json({ success: false, message: 'Error fetching filtered records' });
 
-            const gradeCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
-            speciesSet.forEach(species => {
-                const bins = speciesBinMap[species] ? Array.from(speciesBinMap[species]) : [];
-                const binSharing = bins.some(bin => binSharingMap[bin] && binSharingMap[bin].size > 1);
-                const grade = calculateBAGSGrade(
-                    bins.length,
-                    allRows.filter(r => r.species === species).length,
-                    binSharing,
-                    bins
-                );
-                gradeCounts[grade]++;
-            });
+                const recordsFiltered = allRows.length;
 
-            const stats = {
-                recordCount: allRows.length,
-                speciesCount: speciesSet.size,
-                binCount: binSet.size,
-                curatedCount,
-                uncuratedCount,
-                binSharingEvents,
-                binSplittingEvents,
-                gradeCounts
-            };
+                const curatedCount = allRows.filter(r => r.status).length;
+                const uncuratedCount = allRows.length - curatedCount;
 
-            const paginatedQuery = `
-                SELECT * FROM records
-                ${whereClause}
-                ${orderClause}
-                LIMIT ? OFFSET ?
-            `;
-            const paginatedParams = [...params, parseInt(length), parseInt(start)];
+                const binSharingEvents = Object.values(binSharingMap).filter(set => set.size > 1).length;
+                const binSplittingEvents = Object.values(speciesBinMap).filter(set => set.size > 1).length;
 
-            db.all(paginatedQuery, paginatedParams, (err, paginatedRows) => {
-                if (err) return res.status(500).json({ success: false, message: 'Error fetching paginated records' });
-
-                paginatedRows.forEach(item => {
-                    const validBins = speciesBinMap[item.species]
-                        ? Array.from(speciesBinMap[item.species]).filter(bin => binSharingMap[bin])
-                        : [];
-
-                    const sharedSpecies = item.bin_uri && binSharingMap[item.bin_uri]
-                        ? Array.from(binSharingMap[item.bin_uri]).filter(species => species && species !== item.species)
-                        : [];
-
-                    let binInfo = '';
-                    if (sharedSpecies.length > 0) {
-                        binInfo += `<b>BIN-sharing:</b> ${sharedSpecies.join(', ')} `;
-                    }
-                    if (validBins.length > 1) {
-                        binInfo += `<b>BIN-splitting:</b> ${validBins.join(', ')}`;
-                    } else if (validBins.length === 1) {
-                        binInfo += `<b>Single BIN:</b> ${validBins[0]}`;
-                    }
-
-                    const binSharing = sharedSpecies.length > 0;
-                    const binCount = validBins.length;
-                    const recordCount = allRows.filter(r =>
-                        r.species === item.species &&
-                        (!r.status || (r.status.toLowerCase() !== 'invalid record' && r.status.toLowerCase() !== 'exclude species'))
-                    ).length;
-
-                    const bagsInfo = speciesBAGSMap[item.species] || {};
-                    item.bags = bagsInfo.bags || '';
-                    item.bin_info = bagsInfo.bin_info || '';                    
+                const gradeCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+                Object.values(speciesBAGSMap).forEach(info => {
+                    if (gradeCounts[info.bags] !== undefined) gradeCounts[info.bags]++;
                 });
 
-                const data = paginatedRows.map(row => {
-                    return columns.map(col => row[col.toLowerCase()] || '')
-                        .concat([
-                            row.bags || '', row.bin_info || '', row.status || '',
-                            row.additionalStatus || '', row.species || '',
-                            row.curator_notes || '', row.processid || ''
-                        ]);
-                });
+                const stats = {
+                    recordCount: allRows.length,
+                    speciesCount: speciesSet.size,
+                    binCount: binSet.size,
+                    curatedCount,
+                    uncuratedCount,
+                    binSharingEvents,
+                    binSplittingEvents,
+                    gradeCounts
+                };
 
-                res.json({
-                    draw,
-                    recordsTotal,
-                    recordsFiltered,
-                    data,
-                    stats
+                // Paginated response
+                const paginatedQuery = `
+                    SELECT * FROM records
+                    ${whereClause}
+                    ${orderClause}
+                    LIMIT ? OFFSET ?
+                `;
+                const paginatedParams = [...params, parseInt(length), parseInt(start)];
+
+                db.all(paginatedQuery, paginatedParams, (err, paginatedRows) => {
+                    if (err) return res.status(500).json({ success: false, message: 'Error fetching paginated records' });
+
+                    paginatedRows.forEach(item => {
+                        const bagsInfo = speciesBAGSMap[item.species] || {};
+                        item.bags = bagsInfo.bags || '';
+                        item.bin_info = bagsInfo.bin_info || '';
+                    });
+
+                    const data = paginatedRows.map(row => {
+                        return columns.map(col => row[col.toLowerCase()] || '')
+                            .concat([
+                                row.bags || '', row.bin_info || '', row.status || '',
+                                row.additionalStatus || '', row.species || '',
+                                row.curator_notes || '', row.processid || ''
+                            ]);
+                    });
+
+                    res.json({
+                        draw,
+                        recordsTotal,
+                        recordsFiltered,
+                        data,
+                        stats
+                    });
                 });
             });
         });
