@@ -280,7 +280,23 @@ app.get('/columns', (req, res) => {
     res.json({ availableColumns });
 });
 
-// Function to calculate BAGS grading for a species
+// // Function to calculate BAGS grading for a species
+// function calculateBAGSGrade(binCount, recordCount, binSharing, bins) {
+//     if (binSharing) return 'E'; // BIN-sharing event detected
+
+//     if (binCount === 1) {
+//         if (recordCount > 10) return 'A';
+//         if (recordCount >= 3) return 'B';
+//         if (recordCount < 3) return 'D';
+//     } else {
+//         // BIN-splitting case: Ensure all bins are exclusive to this species
+//         const uniqueToSpecies = bins.every(bin => bin.exclusive);
+//         if (uniqueToSpecies) return 'C';
+//     }
+
+//     return 'E'; // Default to grade E if none of the above conditions match
+// }
+// Example raw bins array (some with invalid 'None' values)
 function calculateBAGSGrade(binCount, recordCount, binSharing, bins) {
     if (binSharing) return 'E'; // BIN-sharing event detected
 
@@ -289,13 +305,17 @@ function calculateBAGSGrade(binCount, recordCount, binSharing, bins) {
         if (recordCount >= 3) return 'B';
         if (recordCount < 3) return 'D';
     } else {
-        // BIN-splitting case: Ensure all bins are exclusive to this species
-        const uniqueToSpecies = bins.every(bin => bin.exclusive);
+        // BIN-splitting case: Ensure all bins are valid and exclusive
+        const allBinsValid = bins.every(bin => bin && typeof bin.exclusive === 'boolean');
+        if (!allBinsValid) return 'E';
+
+        const uniqueToSpecies = bins.every(bin => bin.exclusive === true);
         if (uniqueToSpecies) return 'C';
     }
 
     return 'E'; // Default to grade E if none of the above conditions match
 }
+
 app.post('/generate', (req, res) => {
     let {
         searchTerm,
@@ -338,14 +358,6 @@ app.post('/generate', (req, res) => {
 
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
 
-    // const customSort = `
-    //     identification COLLATE NOCASE ASC,
-    //     CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
-    //     CASE WHEN ranking GLOB '[0-9]*' THEN CAST(ranking AS INTEGER) ELSE 9999 END,
-    //     CAST(sumscore AS INTEGER) DESC
-    // `;
-
-    //let orderClause = ` ORDER BY ${customSort}`;
     let orderClause = '';
 
     if (Array.isArray(req.body.order) && req.body.order.length > 0) {
@@ -367,19 +379,7 @@ app.post('/generate', (req, res) => {
             identification COLLATE NOCASE ASC,
             CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
             CAST(sumscore AS INTEGER) DESC`;
-    }
-
-    // if (Array.isArray(req.body.order) && req.body.order.length > 0) {
-    //     const userSort = req.body.order
-    //         .map(o => {
-    //             const col = columns[o.column];
-    //             const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
-    //             return allowedColumns.includes(col) ? `${col} ${dir}` : null;
-    //         })
-    //         .filter(Boolean)
-    //         .join(', ');
-    //     if (userSort) orderClause += `, ${userSort}`;
-    // }
+    }    
 
     db.get(`SELECT COUNT(*) as count FROM records`, [], (err, totalResult) => {
         if (err) return res.status(500).json({ success: false, message: 'Error counting total records' });
@@ -400,14 +400,55 @@ app.post('/generate', (req, res) => {
             const speciesBinMap = {};
 
             allRows.forEach(row => {
-                if (row.bin_uri) {
+                const validBinUri = row.bin_uri && row.bin_uri !== 'None';
+
+                if (validBinUri) {
                     if (!binSharingMap[row.bin_uri]) binSharingMap[row.bin_uri] = new Set();
                     binSharingMap[row.bin_uri].add(row.species);
                 }
+
                 if (row.species) {
                     if (!speciesBinMap[row.species]) speciesBinMap[row.species] = new Set();
-                    speciesBinMap[row.species].add(row.bin_uri);
+                    if (validBinUri) speciesBinMap[row.species].add(row.bin_uri);
                 }
+            });
+
+            // Precompute BAGS and bin_info per species
+            const speciesBAGSMap = {};
+
+            speciesSet.forEach(species => {
+                const speciesRecords = allRows.filter(r => r.species === species);
+                const bins = speciesBinMap[species] ? Array.from(speciesBinMap[species]) : [];
+                const validBins = bins.filter(bin => bin && bin !== 'None');
+
+                const binSharing = validBins.some(bin => binSharingMap[bin] && binSharingMap[bin].size > 1);
+
+                const grade = calculateBAGSGrade(
+                    validBins.length,
+                    speciesRecords.length,
+                    binSharing,
+                    validBins.map(bin => ({ id: bin, exclusive: !binSharing }))
+                );
+
+                const sharedSpeciesList = validBins.flatMap(bin =>
+                    Array.from(binSharingMap[bin] || []).filter(otherSpecies => otherSpecies && otherSpecies !== species)
+                );
+                const uniqueSharedSpecies = [...new Set(sharedSpeciesList)];
+
+                let binInfo = '';
+                if (uniqueSharedSpecies.length > 0) {
+                    binInfo += `<b>BIN-sharing:</b> ${uniqueSharedSpecies.join(', ')} `;
+                }
+                if (validBins.length > 1) {
+                    binInfo += `<b>BIN-splitting:</b> ${validBins.join(', ')}`;
+                } else if (validBins.length === 1) {
+                    binInfo += `<b>Single BIN:</b> ${validBins[0]}`;
+                }
+
+                speciesBAGSMap[species] = {
+                    bags: grade,
+                    bin_info: binInfo.trim()
+                };
             });
 
             const binSharingEvents = Object.values(binSharingMap).filter(set => set.size > 1).length;
@@ -474,8 +515,9 @@ app.post('/generate', (req, res) => {
                         (!r.status || (r.status.toLowerCase() !== 'invalid record' && r.status.toLowerCase() !== 'exclude species'))
                     ).length;
 
-                    item.bags = calculateBAGSGrade(binCount, recordCount, binSharing, validBins.map(bin => ({ id: bin, exclusive: !binSharing })));
-                    item.bin_info = binInfo.trim();
+                    const bagsInfo = speciesBAGSMap[item.species] || {};
+                    item.bags = bagsInfo.bags || '';
+                    item.bin_info = bagsInfo.bin_info || '';                    
                 });
 
                 const data = paginatedRows.map(row => {
@@ -777,11 +819,25 @@ app.post('/distinct-values', (req, res) => {
     if (searchTerm && searchType) {
         conditions.push(`${searchType} LIKE ?`);
         params.push(`%${searchTerm}%`);
+    }    
+
+    if (searchTerm2) {
+        if (params.length > 0) {
+            sqlQuery += ` AND ${column} LIKE ?`;
+        } else {
+            sqlQuery += ` WHERE ${column} LIKE ?`;
+        }
+        params.push(`%${searchTerm2}%`);
     }
 
-    if (searchTerm2 && searchType2) {
-        conditions.push(`${searchType2} LIKE ?`);
-        params.push(`%${searchTerm2}%`);
+    // Exclude 'None' string if checking bin_uri
+    if (column === 'bin_uri') {
+        const nonNoneClause = `${column} != 'None'`;
+        if (params.length > 0) {
+            sqlQuery += ` AND ${nonNoneClause}`;
+        } else {
+            sqlQuery += ` WHERE ${nonNoneClause}`;
+        }
     }
 
     // Exclude rows with specific statuses
@@ -808,7 +864,7 @@ app.post('/distinct-values', (req, res) => {
         // Calculate statistics
         const recordCount = rows.length;
         const speciesSet = new Set(rows.map(row => row.species).filter(Boolean));
-        const binSet = new Set(rows.map(row => row.bin_uri).filter(Boolean));
+        const binSet = new Set(rows.map(row => row.bin_uri).filter(uri => uri && uri !== 'None'));
         const curatedCount = rows.filter(row => row.status).length;
         const uncuratedCount = recordCount - curatedCount;
 
@@ -816,20 +872,22 @@ app.post('/distinct-values', (req, res) => {
         const binSharingMap = {};
         const speciesBinMap = {};
         rows.forEach(row => {
-            // BIN-sharing
-            if (row.bin_uri) {
+            const validBinUri = row.bin_uri && row.bin_uri !== 'None';
+
+            if (validBinUri) {
                 if (!binSharingMap[row.bin_uri]) {
                     binSharingMap[row.bin_uri] = new Set();
                 }
                 binSharingMap[row.bin_uri].add(row.species);
             }
 
-            // BIN-splitting
             if (row.species) {
                 if (!speciesBinMap[row.species]) {
                     speciesBinMap[row.species] = new Set();
                 }
-                speciesBinMap[row.species].add(row.bin_uri);
+                if (validBinUri) {
+                    speciesBinMap[row.species].add(row.bin_uri);
+                }
             }
         });
 
