@@ -710,18 +710,32 @@ async function applyFilter() {
     const searchTerm2 = document.getElementById('searchTerm2').value;
     const searchType2 = document.getElementById('searchType2').value;
 
-    let columns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
+    let selectedColumns = Array.from(document.querySelectorAll('input[name="columns"]:checked')).map(cb => cb.value);
 
-    if (columns.length === 0) {
-        columns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking', 'country_representative', 'bags_static'];
+    if (selectedColumns.length === 0) {
+        selectedColumns = ['bin_uri', 'processid', 'identification', 'country_ocean', 'url', 'ranking', 'country_representative', 'bags_static'];
     }
 
-    const extraHeaders = ['BAGS', 'BIN Info', 'Status', 'Reason Name Correction', 'Correct Species Name', 'Curator Notes', 'Action'];
-    const thead = `<thead><tr>${
-        columns.map(col => `<th>${displayNames[col] || col}</th>`).join('')
-    }${extraHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
+    const extraColumns = [
+        { data: 'bags', label: 'BAGS', orderable: false },
+        { data: 'bin_info', label: 'BIN Info', orderable: false },
+        { data: 'status', label: 'Status', orderable: false },
+        { data: 'additionalStatus', label: 'Reason Name Correction', orderable: false },
+        { data: 'species', label: 'Correct Species Name', orderable: false },
+        { data: 'curator_notes', label: 'Curator Notes', orderable: false },
+        { data: 'action', label: 'Action', orderable: false }  // Use separate 'action' column
+    ];
 
-    document.getElementById('recordsTable').innerHTML = `<table id="dataTable">${thead}<tbody></tbody></table>`;
+    const displayColumns = [
+        ...selectedColumns.map(col => ({ data: col, orderable: true })),
+        ...extraColumns
+    ];
+
+    const theadHTML = `<thead><tr>${
+        displayColumns.map(col => `<th>${col.label || displayNames[col.data] || col.data}</th>`).join('')
+    }</tr></thead>`;
+
+    document.getElementById('recordsTable').innerHTML = `<table id="dataTable">${theadHTML}<tbody></tbody></table>`;
 
     if ($.fn.DataTable.isDataTable("#dataTable")) {
         $('#dataTable').DataTable().destroy();
@@ -729,22 +743,14 @@ async function applyFilter() {
 
     const entriesPerPage = parseInt(document.getElementById('entriesPerPage').value, 10) || 10;
 
-    const defaultOrder = [];
-
-    if (columns.includes('bin_uri')) {
-        defaultOrder.push([columns.indexOf('bin_uri'), 'asc']);
-    }
-    if (columns.includes('identification')) {
-        defaultOrder.push([columns.indexOf('identification'), 'asc']);
-    }
-
     $('#dataTable').DataTable({
         serverSide: true,
         processing: true,
         ordering: true,
-        order: [], //defaultOrder, #this prevents default sorting, if active!!! 
+        order: [],
         pageLength: entriesPerPage,
         lengthChange: false,
+        columns: displayColumns,
         ajax: {
             url: '/generate',
             type: 'POST',
@@ -757,7 +763,7 @@ async function applyFilter() {
                     searchType,
                     searchTerm2,
                     searchType2,
-                    columns,
+                    columns: d.columns.map(c => ({ data: c.data })),
                     includeInvalid: !hideInvalidRecords,
                     draw: d.draw,
                     order: d.order
@@ -765,57 +771,64 @@ async function applyFilter() {
             }
         },
         paging: true,
-        ordering: true,
         searching: false,
         info: true,
         drawCallback: function (settings) {
             updateStats(settings.json);
-            applyStatusRowColoringAndExcludeRed(); // ✅ apply new coloring after redraw
+            applyStatusRowColoringAndExcludeRed();
         },
         createdRow: function (row, data, dataIndex) {
-            const binUri = data[columns.indexOf('bin_uri')];
-            const statusValue = data[columns.length + 2];
-            const reasonValue = data[columns.length + 3];
-            const speciesValue = data[columns.length + 4];
-            const notesValue = data[columns.length + 5];
-            const processId = data[columns.length + 6];
-            const urlIndex = columns.indexOf('url');
+            const getIndex = (name) => displayColumns.findIndex(col => col.data === name);
 
-            if (urlIndex !== -1) {
-                const rawUrl = data[urlIndex];
-                if (rawUrl) {
-                    $('td', row).eq(urlIndex).html(`<a href="${rawUrl}" target="_blank">Link</a>`);
-                }
+            const binUri = data['bin_uri'];
+            const processId = data['processid'];
+
+            const url = data['url'];
+            if (getIndex('url') !== -1 && url) {
+                $('td', row).eq(getIndex('url')).html(`<a href="${url}" target="_blank">Link</a>`);
             }
 
-            $('td', row).eq(columns.length + 2).html(`
-                <select>
-                    <option value="" ${statusValue === '' ? 'selected' : ''}></option>
-                    <option value="valid record" ${statusValue === 'valid record' ? 'selected' : ''}>valid record</option>
-                    <option value="invalid record" ${statusValue === 'invalid record' ? 'selected' : ''}>invalid record</option>
-                    <option value="exclude species" ${statusValue === 'exclude species' ? 'selected' : ''}>exclude species</option>
-                    <option value="reinclude species" ${statusValue === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
-                </select>`);
+            if (getIndex('status') !== -1) {
+                const statusValue = data['status'] || '';
+                $('td', row).eq(getIndex('status')).html(`
+                    <select>
+                        <option value="" ${statusValue === '' ? 'selected' : ''}></option>
+                        <option value="valid record" ${statusValue === 'valid record' ? 'selected' : ''}>valid record</option>
+                        <option value="invalid record" ${statusValue === 'invalid record' ? 'selected' : ''}>invalid record</option>
+                        <option value="exclude species" ${statusValue === 'exclude species' ? 'selected' : ''}>exclude species</option>
+                        <option value="reinclude species" ${statusValue === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
+                    </select>`);
+            }
 
-            $('td', row).eq(columns.length + 3).html(`
-                <select>
-                    <option value="" ${reasonValue === '' ? 'selected' : ''}></option>
-                    <option value="other" ${reasonValue === 'other' ? 'selected' : ''}>other</option>
-                    <option value="misidentified" ${reasonValue === 'misidentified' ? 'selected' : ''}>misidentified</option>
-                    <option value="synonym" ${reasonValue === 'synonym' ? 'selected' : ''}>synonym</option>
-                    <option value="typo" ${reasonValue === 'typo' ? 'selected' : ''}>typo</option>
-                </select>`);
+            if (getIndex('additionalStatus') !== -1) {
+                const reasonValue = data['additionalStatus'] || '';
+                $('td', row).eq(getIndex('additionalStatus')).html(`
+                    <select>
+                        <option value="" ${reasonValue === '' ? 'selected' : ''}></option>
+                        <option value="other" ${reasonValue === 'other' ? 'selected' : ''}>other</option>
+                        <option value="misidentified" ${reasonValue === 'misidentified' ? 'selected' : ''}>misidentified</option>
+                        <option value="synonym" ${reasonValue === 'synonym' ? 'selected' : ''}>synonym</option>
+                        <option value="typo" ${reasonValue === 'typo' ? 'selected' : ''}>typo</option>
+                    </select>`);
+            }
 
-            $('td', row).eq(columns.length + 4).html(`<input type="text" value="${speciesValue}">`);
-            $('td', row).eq(columns.length + 5).html(`<input type="text" value="${notesValue}">`);
-            $('td', row).eq(columns.length + 6).html(`<button class="row-submit-button" onclick="submitRow(event, null, '${processId}')">Submit</button>`);
+            if (getIndex('species') !== -1) {
+                $('td', row).eq(getIndex('species')).html(`<input type="text" value="${data['species'] || ''}">`);
+            }
 
-            // ✅ Optional: Color bin_uri cells
-            if (columns.indexOf('bin_uri') !== -1 && binUri) {
+            if (getIndex('curator_notes') !== -1) {
+                $('td', row).eq(getIndex('curator_notes')).html(`<input type="text" value="${data['curator_notes'] || ''}">`);
+            }
+
+            if (getIndex('action') !== -1) {
+                $('td', row).eq(getIndex('action')).html(`<button class="row-submit-button" onclick="submitRow(event, null, '${processId}')">Submit</button>`);
+            }
+
+            if (getIndex('bin_uri') !== -1 && binUri) {
                 if (!binUriColorMap[binUri]) {
                     binUriColorMap[binUri] = getRandomColor();
                 }
-                $('td', row).eq(columns.indexOf('bin_uri')).css({
+                $('td', row).eq(getIndex('bin_uri')).css({
                     backgroundColor: binUriColorMap[binUri],
                     color: '#ffffff'
                 });
@@ -823,6 +836,7 @@ async function applyFilter() {
         }
     });
 }
+
 
 async function updateDistinctValues(column, searchTerm, searchType, searchTerm2, searchType2) {
     try {

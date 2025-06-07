@@ -329,17 +329,29 @@ app.post('/generate', (req, res) => {
         draw
     } = req.body;
 
-    const allowedColumns = [/* your column list here */];
+    // const allowedColumns = [
+    //     'bin_uri', 'processid', 'identification', 'country_ocean',
+    //     'url', 'ranking', 'country_representative', 'bags_static'
+    // ];
+    const allowedColumns = [
+        'bin_uri', 'processid', 'identification', 'country_ocean', 'url', 
+        'ranking', 'sumscore', 'species', 'status', 'class', 'order',
+        'family', 'genus', 'subspecies', 'species_reference', 'country_representative', 'bags_static',
+        'sample_id', 'phylum', 'subfamily', 'identification_method', 'identified_by', 'taxonomy_notes',
+        'sex', 'life_stage', 'notes', 'voucher_type', 'collectors', 'collection_date_start', 'collection_date_end',
+        'collection_notes', 'geoid', 'province_state', 'region', 'sector', 'site', 'site_code', 'coord', 'coord_source',
+        'elev', 'depth', 'nuc_basecount', 'recordset_code_arr', 'haplotype_id', 'out_id'
+    ];
 
     const conditions = [];
     const params = [];
 
-    if (searchTerm && searchType && columns.includes(searchType)) {
+    if (searchTerm && searchType && allowedColumns.includes(searchType)) {
         conditions.push(`${searchType} LIKE ?`);
         params.push(`%${searchTerm}%`);
     }
 
-    if (searchTerm2 && searchType2 && columns.includes(searchType2)) {
+    if (searchTerm2 && searchType2 && allowedColumns.includes(searchType2)) {
         conditions.push(`${searchType2} LIKE ?`);
         params.push(`%${searchTerm2}%`);
     }
@@ -350,26 +362,33 @@ app.post('/generate', (req, res) => {
 
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
 
-    const orderClause = (Array.isArray(req.body.order) && req.body.order.length > 0)
-        ? ` ORDER BY ` + req.body.order
-            .map(o => {
-                const col = columns[o.column];
-                const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
-                return allowedColumns.includes(col) ? `${col} ${dir}` : null;
-            })
-            .filter(Boolean)
-            .join(', ')
-        : ` ORDER BY 
-            identification COLLATE NOCASE ASC,
-            CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
-            CAST(sumscore AS INTEGER) DESC`;
+    // ⬇️ Handle sorting logic from DataTables
+    let orderClause = '';
+    const dtColumns = Array.isArray(req.body.columns) ? req.body.columns : [];
+
+    if (Array.isArray(req.body.order) && dtColumns.length > 0) {
+        const sortParts = req.body.order.map(o => {
+            const index = parseInt(o.column);
+            const columnName = dtColumns[index]?.data;
+            const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
+            return allowedColumns.includes(columnName) ? `${columnName} ${dir}` : null;
+        }).filter(Boolean);
+
+        if (sortParts.length > 0) {
+            orderClause = ` ORDER BY ${sortParts.join(', ')}`;
+        } else {
+            orderClause = ` ORDER BY 
+                identification COLLATE NOCASE ASC,
+                CASE WHEN country_representative = 'Yes' THEN 0 ELSE 1 END,
+                CAST(sumscore AS INTEGER) DESC`;
+        }
+    }
 
     db.get(`SELECT COUNT(*) as count FROM records`, [], (err, totalResult) => {
         if (err) return res.status(500).json({ success: false, message: 'Error counting total records' });
-
         const recordsTotal = totalResult.count;
 
-        // First, fetch valid records to compute BAGS info (status NULL, 'valid', or 'reinclude species')
+        // ⬇️ Fetch all valid records for BAGS grading
         db.all(`SELECT * FROM records WHERE status IS NULL OR LOWER(status) IN ('valid', 'reinclude species')`, [], (err, validRows) => {
             if (err) return res.status(500).json({ success: false, message: 'Error fetching valid records for BAGS' });
 
@@ -404,7 +423,7 @@ app.post('/generate', (req, res) => {
                 );
 
                 const sharedSpeciesList = validBins.flatMap(bin =>
-                    Array.from(binSharingMap[bin] || []).filter(otherSpecies => otherSpecies && otherSpecies !== species)
+                    Array.from(binSharingMap[bin] || []).filter(other => other && other !== species)
                 );
                 const uniqueSharedSpecies = [...new Set(sharedSpeciesList)];
 
@@ -424,15 +443,13 @@ app.post('/generate', (req, res) => {
                 };
             });
 
-            // Now fetch the filtered and paginated records
+            // ⬇️ Now fetch filtered rows for display
             db.all(`SELECT * FROM records${whereClause}`, params, (err, allRows) => {
                 if (err) return res.status(500).json({ success: false, message: 'Error fetching filtered records' });
 
                 const recordsFiltered = allRows.length;
-
                 const curatedCount = allRows.filter(r => r.status).length;
                 const uncuratedCount = allRows.length - curatedCount;
-
                 const binSharingEvents = Object.values(binSharingMap).filter(set => set.size > 1).length;
                 const binSplittingEvents = Object.values(speciesBinMap).filter(set => set.size > 1).length;
 
@@ -452,7 +469,6 @@ app.post('/generate', (req, res) => {
                     gradeCounts
                 };
 
-                // Paginated response
                 const paginatedQuery = `
                     SELECT * FROM records
                     ${whereClause}
@@ -471,12 +487,17 @@ app.post('/generate', (req, res) => {
                     });
 
                     const data = paginatedRows.map(row => {
-                        return columns.map(col => row[col.toLowerCase()] || '')
-                            .concat([
-                                row.bags || '', row.bin_info || '', row.status || '',
-                                row.additionalStatus || '', row.species || '',
-                                row.curator_notes || '', row.processid || ''
-                            ]);
+                        return {
+                            ...row,
+                            bags: row.bags || '',
+                            bin_info: row.bin_info || '',
+                            status: row.status || '',
+                            additionalStatus: row.additionalStatus || '',
+                            curator_notes: row.curator_notes || '',
+                            species: row.species || '',
+                            processid: row.processid || '',
+                            action: '' // ✅ required for DataTables column match
+                        };
                     });
 
                     res.json({
