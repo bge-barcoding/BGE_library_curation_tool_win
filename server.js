@@ -389,7 +389,7 @@ app.post('/generate', (req, res) => {
         const recordsTotal = totalResult.count;
 
         // ⬇️ Fetch all valid records for BAGS grading
-        db.all(`SELECT * FROM records WHERE status IS NULL OR LOWER(status) IN ('valid', 'reinclude species')`, [], (err, validRows) => {
+        db.all(`SELECT * FROM records WHERE status IS NULL OR LOWER(status) IN ('valid', 'valid record', 'reinclude species')`, [], (err, validRows) => {
             if (err) return res.status(500).json({ success: false, message: 'Error fetching valid records for BAGS' });
 
             const binSharingMap = {};
