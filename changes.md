@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 - Minor update to `server.js` and `index.html` adding version number of server.js and index.html at the bottom of the user interface.
 - Minor update to `user_manual_windows.html` explaining the new functions.
 
---> in order to get all function, replace `server.js`, `index.html` and `user_manual_windows.html` with the new version (see user_manual_windows.html, chapter 9)!
+--> in order to get all function, replace `server.js`, `index.html` and `user_manual_windows.html` with the new version (see user_manual_windows.html, chapter 8)!
 
 ## [v1.0.1] - 2025-07-24
 ### Changed
