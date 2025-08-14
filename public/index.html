@@ -1,9 +1,10 @@
+<!-- For updates, please adjust "const FRONTEND_VERSION" at the end of the script!!! -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <div style="background: url(ressources/Logo_BGE.jpg); 
             background-repeat: no-repeat; 
-            background-position: 1000px 20px; 
+            background-position: 1100px 20px; 
             background-size: 700px auto;">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.2">
@@ -203,6 +204,7 @@
                 <li><b>Load Dataset:</b> To load datasets: Select one from the dropdown, click 'Load dataset', confirm the popup with 'OK', then click 'Refresh Table' to view the new dataset.</li>                
                 <li><b>Stop Curation Tool:</b> Stops the server running in the backend. Use this only if you want to end the Library Curation Tool.</li>
                 <li><b>Export CSV:</b> Export the database as a CSV file. Selected columns (in Select Columns to Display) will be included; if none are selected, all columns will be exported.</li>
+                <li><b>Restore Decisions:</b> Transfers your curator decisions to the new database file (e.g., Family.db). To use: rename or delete the old .db file in the data folder, and place the new .db file with the exact same name. Then click "Restore Decisions" to reapply your saved curator changes.</li>
             </ul>            
         </div>
     </div>
@@ -214,6 +216,7 @@
             <button onclick="switchDataset()">Load Dataset</button>
             <button type="button" onclick="stopServer()" style="background-color: #EE6A50; color: black;">Stop Curation Tool</button>
             <button onclick="downloadCSV()" style="background-color: lightgreen;">Export CSV</button>
+            <button id="restoreFromLogBtn" style="background-color:#ffc107; color:black;">Restore Decisions</button>
             <span style="cursor: pointer;" onclick="toggleInfo('buttonsInfo')">❓</span>
     </form>
     <script>
@@ -326,6 +329,25 @@
                 });
             })
             .catch(error => console.error('Error fetching datasets:', error));
+    });
+
+    document.getElementById('restoreFromLogBtn').addEventListener('click', async () => {
+        if (!confirm("This will restore curator decisions from changes.log into the current database. Continue?")) return;
+
+        try {
+            const response = await fetch('/restore-from-log', { method: 'POST' });
+            const result = await response.json();
+
+            if (result.success) {
+                alert(result.message);
+                location.reload(); // Reload to reflect updated data
+            } else {
+                alert("Restore failed: " + result.message);
+            }
+        } catch (err) {
+            console.error('Restore error:', err);
+            alert('Error while restoring curator decisions.');
+        }
     });
 
     function switchDataset() {
@@ -542,11 +564,19 @@ function applyStatusRowColoringAndExcludeRed() {
             }
 
             // ✅ Override colors by status
-            if (statusValue === 'valid record' || statusValue === 'reinclude species') {
-                row.style.backgroundColor = '#d4edda';
+            if (
+                statusValue === 'valid record' ||
+                statusValue === 'reinclude species' ||
+                statusValue === 'reinclude bin'
+            ) {
+                row.style.backgroundColor = '#d4edda'; // green
                 row.style.color = '#155724';
-            } else if (statusValue === 'invalid record' || statusValue === 'exclude species') {
-                row.style.backgroundColor = '#f8d7da';
+            } else if (
+                statusValue === 'invalid record' ||
+                statusValue === 'exclude species' ||
+                statusValue === 'exclude bin'
+            ) {
+                row.style.backgroundColor = '#f8d7da'; // red
                 row.style.color = '#721c24';
                 if (hideInvalidRecords) {
                     row.style.display = 'none';
@@ -809,6 +839,8 @@ async function applyFilter() {
                         <option value="invalid record" ${statusValue === 'invalid record' ? 'selected' : ''}>invalid record</option>
                         <option value="exclude species" ${statusValue === 'exclude species' ? 'selected' : ''}>exclude species</option>
                         <option value="reinclude species" ${statusValue === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
+                        <option value="exclude bin" ${statusValue === 'exclude bin' ? 'selected' : ''}>exclude BIN</option>
+                        <option value="reinclude bin" ${statusValue === 'reinclude bin' ? 'selected' : ''}>reinclude BIN</option>
                     </select>`);
             }
 
@@ -967,20 +999,24 @@ async function submitRow(event, index, processId) {
     const additionalStatus = reasonCell.querySelector('select')?.value || '';
     const species = speciesCell.querySelector('input')?.value || '';
     const curator_notes = notesCell.querySelector('input')?.value || '';
+    const binUriCellIndex = getColumnIndexByName('#dataTable', 'bin_uri');
+    const binUri = binUriCellIndex !== -1 ? cells[binUriCellIndex]?.textContent.trim() : '';
 
     if (status === 'exclude species') {
-        const userConfirmed = confirm("You are about to exclude an entire species. Are you sure?");
-        if (!userConfirmed) return;
+        if (!confirm("You are about to exclude an entire species. Are you sure?")) return;
     } else if (status === 'reinclude species') {
-        const userConfirmed = confirm("You are about to reinclude an entire species. Are you sure?");
-        if (!userConfirmed) return;
+        if (!confirm("You are about to reinclude an entire species. Are you sure?")) return;
+    } else if (status === 'exclude bin') {
+        if (!confirm(`You are about to exclude all records in BIN ${binUri}. Are you sure?`)) return;
+    } else if (status === 'reinclude bin') {
+        if (!confirm(`You are about to reinclude all records in BIN ${binUri}. Are you sure?`)) return;
     }
 
     try {
         const response = await fetch('/submit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ processId, status, additionalStatus, species, curator_notes })
+            body: JSON.stringify({ processId, binUri, status, additionalStatus, species, curator_notes })
         });
 
         if (!response.ok) throw new Error('Failed to submit row');
@@ -1124,6 +1160,24 @@ function submitAllRows() {
                 }, 3000);
             }
         }
+
+        const FRONTEND_VERSION = "v1.0.2";
+        fetch('/version')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('toolVersion').textContent = data.version;
+        })
+        .catch(err => {
+            console.error("Error fetching version:", err);
+            document.getElementById('toolVersion').textContent = "Unknown";
+        });
     </script>
 </body>
 </html>
+<footer style="margin-top: 10px; font-size: 14px; color: gray;">
+    Backend (server.js): <span id="toolVersion">Loading...</span> |
+    Frontend (index.html): <span id="frontendVersion"></span>
+</footer>
+<script>
+document.getElementById('frontendVersion').textContent = FRONTEND_VERSION;
+</script>

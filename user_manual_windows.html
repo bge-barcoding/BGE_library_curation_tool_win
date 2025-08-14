@@ -100,7 +100,8 @@
     <a href="#data">5. Data Management</a>
     <a href="#stopping">6. Stopping the Tool</a>
     <a href="#troubleshooting">7. Troubleshooting</a>
-    <a href="#notes">8. Notes</a>
+    <a href="#updates"> 8. Updates</a>
+    <a href="#notes">9. Notes</a>    
   </nav>
 
   <h2 id="introduction">1. Introduction</h2>
@@ -160,13 +161,15 @@ ProjectFolder/
     <tr><td><img src="public/ressources/user_manual/apply_filter.png" alt="Refresh Table"></td>
       <td>Filters the records based on your selected criteria and displays the results. / Refreshes the HTML-table</td></tr>
     <tr><td><img src="public/ressources/user_manual/hide.png" alt="Show/Hide Invalid Records"></td>
-      <td>Toggles the visibility of rows marked with a red background (Status = invalid record or exclude species)</td></tr>  
+      <td>Toggles the visibility of rows marked with a red background (Status = invalid record, exclude species or exclude BIN)</td></tr>  
     <tr><td><img src="public/ressources/user_manual/available_data.png" alt="Available data"><img src="public/ressources/user_manual/switch.png" alt="Switch Dataset"></td>
       <td>To load or switch between datasets: Select one from the dropdown, click <b>Load Dataset</b>, confirm the popup with <b>OK</b>, then click <b>Refresh Table</b> to view the new dataset (in this case Alucitidae)</td></tr>
     <tr><td><img src="public/ressources/user_manual/stop.png" alt="Stop Curation Tool"></td>
       <td>Stop the server running in the backend. Use this only if you want to end the Library Curation Tool.</td></tr>
     <tr><td><img src="public/ressources/user_manual/export_csv.png" alt="Export CSV"></td>
-      <td>Export the database as a CSV file. Selected columns (in Select Columns to Display) will be included; if none are selected, all columns will be exported. Column selected records shows processids of all records selected for the reference database.</td></tr>  
+      <td>Export the database as a CSV file. Selected columns (in Select Columns to Display) will be included; if none are selected, all columns will be exported. Column selected records shows processids of all records selected for the reference database.</td></tr>
+    <tr><td><img src="public/ressources/user_manual/restore_decisions.png" alt="Restore Decisions"></td>
+      <td>Transfers your curator decisions to the new database file (e.g., Family.db). To use: rename or delete the old .db file in the data folder, and place the new .db file with the exact same name. Then click "Restore Decisions" to reapply your saved curator changes.</td></tr>
     <tr><td><img src="public/ressources/user_manual/question_mark.png" alt="red question mark"></td>
       <td>Click on the <b>red question mark</b> in order to open a context menu with supporting information.</td></tr>
     <tr><td><img src="public/ressources/user_manual/recordsonpage.png" alt="records on page dropdown"></td>
@@ -191,11 +194,11 @@ ProjectFolder/
       <font color =red><b>BAGS</b> is computed dynamically in the curation tool. Whereas, <b>bags_static</b> is a static value, but sortable and searchble.</font>      
     </td></tr>
     <tr><td><img src="public/ressources/user_manual/bininfo.png" alt="BIN Info"></td>
-      <td><b>BIN Info:</b> Dynamically shows <b>BIN-sharing</b> and <b>BIN-splitting</b> events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records or species the values will be recalculated.</td></tr>
+      <td><b>BIN Info:</b> Dynamically shows <b>BIN-sharing</b> and <b>BIN-splitting</b> events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records, species or BIN the values will be recalculated.</td></tr>
     <tr><td><img src="public/ressources/user_manual/link.png" alt="Link"></td>
       <td>Direct link to the corresponding record on <a href="https://portal.boldsystems.org" target="_blank">https://portal.boldsystems.org</a>.</td></tr>
     <tr><td><img src="public/ressources/user_manual/status.png" alt="Status - dropdown"></td>
-      <td><b>Status - dropdown:</b> Mark records as <b>valid</b> or <b>invalid</b> and <b>exclude species</b> or <b>reinclude species</b> (a popup window will open and ask you if you are sure that you want to remove this species).Save changes by pressing the <b>Submit</b> button. Press the <b>Refresh Table</b> button to refresh the HTML-table and see the changes. Records marked as <u>valid appear green</u> and such marked as <u>invalid in red and will be hidden</u>. The number of BINs and records in the Statistics Panel is adjusted accordingly. Press the <b>Show/Hide Invalid Records</b> button to show them again (maybe you have to press the button several times to see a result).</td></tr>
+      <td><b>Status - dropdown:</b> Mark records as <b>valid</b> or <b>invalid</b> and <b>exclude species, BIN</b> or <b>reinclude species, BIN</b> (a popup window will open and ask you if you are sure that you want to remove this species).Save changes by pressing the <b>Submit</b> button. Press the <b>Refresh Table</b> button to refresh the HTML-table and see the changes. Records marked as <u>valid appear green</u> and such marked as <u>invalid in red and will be hidden</u>. The number of BINs and records in the Statistics Panel is adjusted accordingly. Press the <b>Show/Hide Invalid Records</b> button to show them again (maybe you have to press the button several times to see a result).</td></tr>
     <tr><td><img src="public/ressources/user_manual/name_correction.png" alt="Reason Name Correction - dropdown"></td>
       <td><b>Reason name correction - dropdown:</b> select a reason from the dropdown, if you correct a species name: <u>other, misidentified or no selection allows the correction of the species name for a single row synonym and typo will correct the species name for the whole selected species</u></td></tr>
     <tr><td><img src="public/ressources/user_manual/correctspeciesname.png" alt="Correct Species Name"></td>
@@ -235,7 +238,7 @@ ProjectFolder/
     <div class="warning"><b>Important:</b> <b>Records highlighted in grey (country_representative = 'Yes')</b> are pre-selected for the reference library. You don't need to validate them. If you want to exclude them, set them as invalid. <b>Records not highlighted (with white background, country_representative = 'no')</b> are not intended to be part of the Reference Library. If you want to include them, please validate them.</div>
     <p><img src="public/ressources/user_manual/records_highlighted.png" alt="Highlighted Records in grey"></p>
     <li><b>Add further columns</b> by checking the corresponding checkboxes in the <strong>Columns Checkbox field</strong> and press <strong>Refresh Table</strong>.</li>
-    <li><strong>BIN Info:</strong> Dynamically shows BIN-sharing and BIN-splitting events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records or species the values will be recalculated.</li>
+    <li><strong>BIN Info:</strong> Dynamically shows BIN-sharing and BIN-splitting events for the corresponding record and lists with which species BINs are shared and/or the BINs belonging to this/these species. If you exclude records, species or BIN the values will be recalculated.</li>
     <li><strong>Link:</strong> Press <strong>Link</strong> in the <strong>url column</strong> and a new tab with the corresponding record on the BOLD homepage will open.</li>    
   </ul>
 
@@ -244,7 +247,7 @@ ProjectFolder/
     <div class="warning"><b>Important:</b> Please save all changes you make by pressing the <strong>Submit button</strong> at the end of the line or the <strong>Submit All on Page</strong> button at the end of the page!!!</div>
     <li><strong>Status:</strong> You can mark records as valid or invalid by choosing the corresponding option from the <strong>Status dropdown menu</strong> and pressing the <strong>Submit</strong> button. Your change will be saved to the logfile and the database. However, you will only see a change, if you press the <strong>Refresh Table</strong> button to refresh the HTML-table. Records marked as valid appear green and such marked as invalid in red and will be hidden. The number of BINs and records in the <strong>Statistics Panel</strong> is adjusted accordingly. Press the <strong>Show/Hide Invalid Records</strong> button to show them again (maybe you have to press the button several times to see a result). 
     <p><img src="public/ressources/user_manual/status_color.png" alt="Valid and Invalid Records coloration"></p>
-    Further you can exclude and also reinclude a whole species by selecting the option exclude species or reinclude species from the <strong>Status dropdown menu</strong>. When you press the <strong>Submit</strong> button a popup window will open and ask you if you are sure that you want to remove this species. Finish the action by pressing the <strong>Submit</strong> button. The HTML-table shows your changes only after refreshing by pressing the <strong>Refresh Table</strong> button.</li>
+    Further you can exclude and also reinclude a whole species or BIN by selecting the option exclude species or BIN, respectively reinclude species or BIN from the <strong>Status dropdown menu</strong>. When you press the <strong>Submit</strong> button a popup window will open and ask you if you are sure that you want to remove this species. Finish the action by pressing the <strong>Submit</strong> button. The HTML-table shows your changes only after refreshing by pressing the <strong>Refresh Table</strong> button.</li>
     <li><strong>Correct species name:</strong> In order to correct a species name, select a reason from the dropdown menu in <strong>Reason name correction</strong>.  This will have different effects on the <strong>Correct species name</strong> fields: misidentified or no selection allows the correction of the species name for a single row, synonym and typo will correct the species name for the whole selected species. Then correct the name in the field <strong>Correct species name</strong>. Finish the action by pressing the <strong>Submit</strong> button. The HTML-table shows your changes only after refreshing by pressing the Refresh Table button.</li>
     <li><strong>General:</strong> Save your changes by pressing the <strong>Submit</strong> button. The action will be saved to the logfile and the database. However, you will see no changes in the HTML-table, until you refresh the table by pressing the <strong>Refresh Table</strong> button.</li>
     <li><b>Curator_notes:</b> This is a free text field, where you can add additional information. Press <strong>Submit</strong> to save.</li>
@@ -282,12 +285,28 @@ ProjectFolder/
   <h4>Browser doesn't open:</h4>
   <p>Navigate to <a href="http://localhost:3000" target="_blank">http://localhost:3000</a>.</p>
 
-  <h2 id="notes">8. Notes</h2>
+  <h2 id="updates">8. Updates</h2>
+  <ul>
+    <li>From time to time, updates to the tool will be released to fix bugs or add new features.</li>
+    <li>Updates will usually affect one or more of the following files: <code>server.js</code>, <code>index.html</code> (in the <code>public</code> subfolder), and the user manual.</li>
+    <li>You do not need to replace the entire tool. Instead:
+        <ol>
+            <li>Download the latest version of the tool from 
+                <a href="https://bge-barcoding.github.io/manual-curation/" target="_blank">https://bge-barcoding.github.io/manual-curation/</a>.
+            </li>
+            <li>Extract the downloaded files.</li>
+            <li>Open the file <code>changes.md</code> to see which files have been updated in this release.</li>
+            <li>Replace only the affected files in your local installation with the new versions.</li>
+        </ol>
+    </li>
+  </ul>  
+
+  <h2 id="notes">9. Notes</h2>
   <ul>
     <li>Always stop the server properly via the interface.</li>
     <li><b style='color:red;'>Send your <code>changes.log</code> file to the coordination team (curation_tool@snsb.de and kuehbandner@snsb.de) after curation.</b></li>
     <li>Project site: <a href="https://biodiversitygenomics.eu/" target="_blank">https://biodiversitygenomics.eu/</a></li>
     <li>This curation_tool has been devloped within the EU-Horizon Project: Biodiversity Genomics Europe by the SNSB (Staatliche Naturwissenschaftliche Sammlungen Bayerns). Developers: Stephan Kühbandner, Fabian Deister</li>
-  </ul>
+  </ul>  
 </body>
 </html>

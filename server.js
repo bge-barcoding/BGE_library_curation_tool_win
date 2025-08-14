@@ -1,3 +1,5 @@
+//For updates, please adjust "const TOOL VERSION" at the top of the script!!!
+const TOOL_VERSION = "v1.0.2";
 const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
@@ -35,6 +37,10 @@ function getAvailableDatasets() {
 
 app.get('/datasets', (req, res) => {
     res.json(getAvailableDatasets());
+});
+
+app.get('/version', (req, res) => {
+    res.json({ version: TOOL_VERSION });
 });
 
 app.post('/switch-dataset', (req, res) => {
@@ -357,7 +363,7 @@ app.post('/generate', (req, res) => {
     }
 
     if (!includeInvalid) {
-        conditions.push(`(status IS NULL OR LOWER(status) NOT IN ('invalid record', 'exclude species'))`);
+        conditions.push(`(status IS NULL OR LOWER(status) NOT IN ('invalid record', 'exclude species', 'exclude bin'))`);
     }
 
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
@@ -389,7 +395,7 @@ app.post('/generate', (req, res) => {
         const recordsTotal = totalResult.count;
 
         // ⬇️ Fetch all valid records for BAGS grading
-        db.all(`SELECT * FROM records WHERE status IS NULL OR LOWER(status) IN ('valid', 'valid record', 'reinclude species')`, [], (err, validRows) => {
+        db.all(`SELECT * FROM records WHERE status IS NULL OR LOWER(status) IN ('valid', 'valid record', 'reinclude species', 'reinclude bin')`, [], (err, validRows) => {
             if (err) return res.status(500).json({ success: false, message: 'Error fetching valid records for BAGS' });
 
             const binSharingMap = {};
@@ -515,7 +521,7 @@ app.post('/generate', (req, res) => {
 
 // app.post('/submit') endpoint
 app.post('/submit', (req, res) => {
-    const { processId, status, additionalStatus, species, curator_notes } = req.body;
+    const { processId, binUri, status, additionalStatus, species, curator_notes } = req.body;
 
     // SQL command to get the current values
     const sqlSelect = `SELECT species, identification, status, additionalStatus, curator_notes FROM records WHERE processid = ?`;
@@ -568,6 +574,89 @@ app.post('/submit', (req, res) => {
                 res.json({ success: true, message: 'Row data updated successfully' });
             });
         }
+
+        // **🔹 Handle "exclude bin" logic (keep "valid record" unchanged)**
+        if (status === 'exclude bin') {
+                console.log(`Excluding all records with BIN URI: ${binUri}`);
+
+                db.all(
+                    `SELECT processid, status FROM records WHERE bin_uri = ? AND (status IS NULL OR status NOT IN (?))`,
+                    [binUri, 'valid record'],
+                    (err, rows) => {
+                        if (err) {
+                            console.error('Error fetching BIN records:', err);
+                            return res.status(500).json({ success: false, message: 'Error fetching BIN records' });
+                        }
+
+                        if (rows.length === 0) {
+                            console.log('No BIN records found to update.');
+                            return updateRecords();
+                        }
+
+                        db.run(
+                            `UPDATE records SET status = ? WHERE bin_uri = ? AND (status IS NULL OR status NOT IN (?))`,
+                            ['exclude bin', binUri, 'valid record'],
+                            function (updateErr) {
+                                if (updateErr) {
+                                    console.error('Error updating BIN records:', updateErr);
+                                    return res.status(500).json({ success: false, message: 'Error updating BIN records' });
+                                }
+
+                                console.log(`Updated status to 'exclude bin' for BIN: ${binUri}`);
+
+                                rows.forEach(row => {
+                                    const logChanges = {
+                                        oldValues: { status: row.status || 'uncurated' },
+                                        newValues: { status: 'exclude bin' }
+                                    };
+                                    writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
+                                });
+
+                                updateRecords();
+                            }
+                        );
+                    }
+                );
+                return; // stop here so species logic doesn't also run
+            }
+
+            // **🔹 Handle "reinclude bin" logic (keep "valid record" unchanged)**
+            if (status === 'reinclude bin') {
+                console.log(`Reincluding all records with BIN URI: ${binUri}`);
+
+                const sqlUpdateAll = `UPDATE records SET status = 'reinclude bin' 
+                                      WHERE bin_uri = ? AND (status IS NULL OR status NOT IN (?))`;
+
+                db.run(sqlUpdateAll, [binUri, 'valid record'], function(err) {
+                    if (err) {
+                        console.error('Error reincluding BIN records:', err);
+                        return res.status(500).json({ success: false, message: 'Error reincluding BIN records' });
+                    }
+
+                    console.log(`Updated status to 'reinclude bin' for applicable records in BIN: ${binUri}`);
+
+                    const sqlSelectAll = `SELECT processid FROM records 
+                                          WHERE bin_uri = ? AND (status IS NULL OR status NOT IN (?))`;
+                    db.all(sqlSelectAll, [binUri, 'valid record'], (selectAllErr, rows) => {
+                        if (selectAllErr) {
+                            console.error('Error fetching updated BIN records:', selectAllErr);
+                        } else {
+                            rows.forEach(row => {
+                                const logChanges = {
+                                    oldValues: { status: currentStatus },
+                                    newValues: { status: 'reinclude bin' }
+                                };
+                                writeToLog(row.processid, 'Updated', logChanges.oldValues, logChanges.newValues);
+                            });
+                        }
+                    });
+
+                    updateRecords();
+                });
+                return; // stop further processing, similar to exclude bin
+            }
+
+
 
         // **🔹 Handle "exclude species" logic, but keep "valid record" entries unchanged**
         if (status === 'exclude species') {
@@ -743,6 +832,8 @@ app.post('/search', (req, res) => {
                             <option value="invalid record" ${item.status === 'invalid record' ? 'selected' : ''}>invalid record</option>
                             <option value="exclude species" ${item.status === 'exclude species' ? 'selected' : ''}>exclude species</option>
                             <option value="reinclude species" ${item.status === 'reinclude species' ? 'selected' : ''}>reinclude species</option>
+                            <option value="exclude bin" ${statusValue === 'exclude bin' ? 'selected' : ''}>exclude BIN</option>
+                            <option value="reinclude bin" ${statusValue === 'reinclude bin' ? 'selected' : ''}>reinclude BIN</option>
                         </select>
                     </td>
                     <td>
@@ -813,7 +904,7 @@ app.post('/distinct-values', (req, res) => {
     }
 
     // Exclude rows with specific statuses
-    conditions.push(`(LOWER(status) NOT IN ('invalid record') OR status IS NULL)`);
+    conditions.push(`(LOWER(status) NOT IN ('invalid record', 'exclude species', 'exclude bin') OR status IS NULL)`);
     //conditions.push(`(LOWER(status) NOT IN ('invalid record', 'exclude species') OR status IS NULL)`);
 
     // Add conditions to the query
@@ -1062,5 +1153,90 @@ app.post('/download-csv', express.json(), (req, res) => {
         res.status(200).send(csvRows.join('\n'));
 
         dbExport.close();
+    });
+});
+
+// Restore curator decisions from changes.log
+app.post('/restore-from-log', (req, res) => {
+    const logFilePath = path.join(__dirname, 'logs', 'changes.log');
+
+    if (!fs.existsSync(logFilePath)) {
+        return res.status(404).json({ success: false, message: 'changes.log not found' });
+    }
+
+    fs.readFile(logFilePath, 'utf8', (err, logData) => {
+        if (err) {
+            console.error('Error reading changes.log:', err);
+            return res.status(500).json({ success: false, message: 'Error reading log file' });
+        }
+
+        const lines = logData.split(/\r?\n/);
+        const changesMap = {}; // { processId: { status, additionalStatus, species, curator_notes } }
+        let currentProcessId = null;
+
+        // Parse log file line-by-line
+        lines.forEach(line => {
+            const processMatch = line.match(/Process ID:\s*([A-Za-z0-9-]+)/);
+            if (processMatch) {
+                currentProcessId = processMatch[1];
+                if (!changesMap[currentProcessId]) {
+                    changesMap[currentProcessId] = {};
+                }
+                return;
+            }
+
+            if (currentProcessId) {
+                const fieldMatch = line.match(/^\s+([a-zA-Z_]+):\s*(.*?)\s*->\s*(.*)$/);
+                if (fieldMatch) {
+                    const field = fieldMatch[1];
+                    const newValue = fieldMatch[3];
+                    if (['status', 'additionalStatus', 'species', 'curator_notes'].includes(field)) {
+                        // Always overwrite so the latest log entry wins
+                        changesMap[currentProcessId][field] = newValue;
+                    }
+                }
+            }
+        });
+
+        // Get all process IDs from the DB
+        db.all(`SELECT processid FROM records`, [], (err, rows) => {
+            if (err) {
+                console.error('Error fetching process IDs from DB:', err);
+                return res.status(500).json({ success: false, message: 'Error reading database' });
+            }
+
+            const validProcessIds = new Set(rows.map(r => r.processid));
+            const updates = Object.entries(changesMap)
+                .filter(([pid]) => validProcessIds.has(pid));
+
+            if (updates.length === 0) {
+                return res.json({ success: false, message: 'No matching process IDs found in current DB.' });
+            }
+
+            db.serialize(() => {
+                db.run("BEGIN TRANSACTION");
+                updates.forEach(([pid, fields]) => {
+                    const setClauses = [];
+                    const values = [];
+                    Object.entries(fields).forEach(([col, val]) => {
+                        setClauses.push(`${col} = ?`);
+                        values.push(val);
+                    });
+                    if (setClauses.length > 0) {
+                        values.push(pid);
+                        const sql = `UPDATE records SET ${setClauses.join(', ')} WHERE processid = ?`;
+                        db.run(sql, values);
+                    }
+                });
+                db.run("COMMIT", (err) => {
+                    if (err) {
+                        console.error('Transaction commit failed:', err);
+                        return res.status(500).json({ success: false, message: 'Failed to apply changes' });
+                    }
+                    console.log(`Applied curator decisions to ${updates.length} records`);
+                    res.json({ success: true, message: `Restored curator decisions for ${updates.length} records` });
+                });
+            });
+        });
     });
 });
